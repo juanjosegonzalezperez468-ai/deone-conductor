@@ -33,8 +33,11 @@ export default function RegistroConductorScreen({ navigate, params }) {
         tipo:         'conductor',
       });
       navigate('PantallaPendiente');
-    } catch {
-      Alert.alert('Error', 'No pudimos completar el registro. Intenta de nuevo.');
+    } catch (err) {
+      const errorMsg = err?.response?.data?.detail ||
+                       err?.message ||
+                       JSON.stringify(err);
+      Alert.alert('Error registro', errorMsg);
     } finally {
       setLoading(false);
     }
