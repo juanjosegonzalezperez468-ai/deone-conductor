@@ -20,6 +20,7 @@ export default function LoginScreen({ navigate }) {
       const confirmation = await auth().signInWithPhoneNumber('+57' + digits);
       navigate('OTP', { confirmation, phone: '+57' + digits });
     } catch (err) {
+      console.error('[LoginScreen] signInWithPhoneNumber error:', err);
       Alert.alert('Error', 'No pudimos enviar el código. Verifica el número e intenta de nuevo.');
     } finally {
       setLoading(false);
