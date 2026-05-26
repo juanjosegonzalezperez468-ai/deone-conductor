@@ -8,9 +8,11 @@ const api = axios.create({
 });
 
 export const conductorApi = {
-  pendientes:  (tipo, params)       => api.get(`/services/pendientes/${tipo}`, { params }),
-  historial:   (conductorId)        => api.get(`/conductor/${conductorId}/historial`),
-  estadoViaje: (serviceId, estado)  => api.patch(`/services/${serviceId}/estado`, { estado }),
+  pendientes:       (tipo, params)        => api.get(`/services/pendientes/${tipo}`, { params }),
+  historial:        (conductorId)         => api.get(`/conductor/${conductorId}/historial`),
+  estadoViaje:      (serviceId, estado)   => api.patch(`/services/${serviceId}/estado`, { estado }),
+  perfil:           (conductorId)         => api.get(`/conductor/${conductorId}/perfil`),
+  actualizarPerfil: (conductorId, data)   => api.patch(`/conductor/${conductorId}/perfil`, data),
 };
 
 export const offersApi = {
@@ -30,6 +32,20 @@ export const billingApi = {
 
 export const authApi = {
   verificarOtp: (data) => api.post('/auth/verificar-otp', data),
+};
+
+export const documentosApi = {
+  subir: (formData) =>
+    api.post('/conductores/documentos/subir', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
+    }),
+  obtener: (conductorId) => api.get(`/conductores/documentos/${conductorId}`),
+};
+
+export const vehiculoApi = {
+  registrar: (data)        => api.post('/conductores/vehiculo/registrar', data),
+  obtener:   (conductorId) => api.get(`/conductores/vehiculo/${conductorId}`),
 };
 
 export default api;

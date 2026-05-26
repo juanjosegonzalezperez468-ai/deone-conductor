@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, TouchableOpacity, StyleSheet,
+  View, Text, TouchableOpacity, StyleSheet, Alert, Linking,
   StatusBar, ActivityIndicator, Image, Modal, Switch,
 } from 'react-native';
 import * as Location from 'expo-location';
@@ -65,7 +65,7 @@ export default function HomeScreen({ navigate }) {
   }, []);
 
   useEffect(() => {
-    if (saldo === 0 && disponible) setDisponible(false);
+    if (saldoInsuficiente && disponible) setDisponible(false);
   }, [saldo]);
 
   const fetchSaldo = async () => {
@@ -167,7 +167,14 @@ export default function HomeScreen({ navigate }) {
   };
 
   const handleToggle = async (value) => {
-    if (value && saldo === 0) return;
+    if (value && saldoInsuficiente) {
+      Alert.alert(
+        'Saldo insuficiente',
+        'Necesitas al menos $1.000 en saldo para activarte y recibir servicios.\n\nContacta soporte para recargar.',
+        [{ text: 'Entendido' }]
+      );
+      return;
+    }
     if (value) {
       setLoadingToggle(true);
       try {
@@ -184,7 +191,8 @@ export default function HomeScreen({ navigate }) {
     setDisponible(value);
   };
 
-  const saldoCero   = saldo === 0;
+  const saldoBajo        = saldo !== null && saldo < 2000;
+  const saldoInsuficiente = saldo !== null && saldo < 1000;
   const timerPct    = timer / TIMER_SECS;
   const timerColor  = timer > 20 ? C.green : timer > 10 ? C.yellow : C.red;
   const srv         = solicitud ? SERVICES.find(sv => sv.id === (solicitud.tipo_servicio || 'moto_pasajero')) : null;
@@ -306,6 +314,24 @@ export default function HomeScreen({ navigate }) {
         </View>
       </View>
 
+      {/* ───── SALDO BAJO BANNER ───── */}
+      {saldoBajo && (
+        <TouchableOpacity
+          style={s.saldoBanner}
+          onPress={() => Linking.openURL('https://wa.me/573239420671')}
+          activeOpacity={0.85}
+        >
+          <Text style={s.saldoBannerIcon}>⚠️</Text>
+          <View style={s.saldoBannerTexts}>
+            <Text style={s.saldoBannerTitle}>Saldo bajo</Text>
+            <Text style={s.saldoBannerSub}>Recarga para seguir recibiendo servicios</Text>
+          </View>
+          <View style={s.saldoBannerBtn}>
+            <Text style={s.saldoBannerBtnTxt}>Recargar</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
       {/* ───── CARDS ───── */}
       <View style={s.cardsWrap}>
 
@@ -320,7 +346,7 @@ export default function HomeScreen({ navigate }) {
               <Text style={s.toggleSub}>
                 {disponible
                   ? 'Recibiendo solicitudes'
-                  : saldoCero ? 'Recarga saldo para activarte' : 'Activa para recibir viajes'}
+                  : saldoInsuficiente ? 'Saldo insuficiente para activarte' : 'Activa para recibir viajes'}
               </Text>
             </View>
           </View>
@@ -332,7 +358,7 @@ export default function HomeScreen({ navigate }) {
                 onValueChange={handleToggle}
                 trackColor={{ false: '#CCCCCC', true: C.green }}
                 thumbColor={C.white}
-                disabled={saldoCero}
+                disabled={saldoInsuficiente}
               />
             )
           }
@@ -401,6 +427,25 @@ const s = StyleSheet.create({
   headerRight: { alignItems: 'flex-end' },
   hola:        { color: C.black, fontSize: 15, fontWeight: '700' },
   ciudad:      { color: C.gray,  fontSize: 13, marginTop: 2 },
+
+  /* Saldo bajo banner */
+  saldoBanner: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    backgroundColor:   '#FFF3CD',
+    marginHorizontal:  16,
+    marginBottom:      10,
+    borderRadius:      16,
+    padding:           14,
+    borderWidth:       1,
+    borderColor:       '#FFD700',
+  },
+  saldoBannerIcon:  { fontSize: 20, marginRight: 10 },
+  saldoBannerTexts: { flex: 1 },
+  saldoBannerTitle: { color: '#7A5C00', fontSize: 13, fontWeight: '700' },
+  saldoBannerSub:   { color: '#7A5C00', fontSize: 11 },
+  saldoBannerBtn:   { backgroundColor: C.yellow, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6, marginLeft: 8 },
+  saldoBannerBtnTxt:{ color: C.black, fontSize: 12, fontWeight: '700' },
 
   /* Cards wrapper */
   cardsWrap: { paddingHorizontal: 16, gap: 10, marginBottom: 12 },

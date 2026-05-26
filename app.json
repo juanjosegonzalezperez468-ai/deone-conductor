@@ -38,6 +38,13 @@
           "locationAlwaysAndWhenInUsePermission": "Deone Conductor necesita tu ubicación para mostrarte a los clientes cercanos."
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Deone Conductor necesita acceso a tus fotos para subir documentos.",
+          "cameraPermission": "Deone Conductor necesita acceso a la cámara para fotografiar documentos."
+        }
+      ],
       "@react-native-firebase/app",
       "@react-native-firebase/auth"
     ],
