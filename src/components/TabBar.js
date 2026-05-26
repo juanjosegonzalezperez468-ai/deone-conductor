@@ -1,17 +1,21 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
-const TABS = [
+const BASE_TABS = [
   { key: 'Home',      label: 'Inicio',    icon: '🏠' },
   { key: 'Ganancias', label: 'Ganancias', icon: '💰' },
   { key: 'Actividad', label: 'Actividad', icon: '📋' },
   { key: 'Cuenta',    label: 'Cuenta',    icon: '👤' },
 ];
 
-export default function TabBar({ active, onPress }) {
+const ADMIN_TAB = { key: 'Admin', label: 'Admin', icon: '🛡️' };
+
+export default function TabBar({ active, onPress, isAdmin }) {
+  const tabs = isAdmin ? [...BASE_TABS, ADMIN_TAB] : BASE_TABS;
+
   return (
     <View style={s.bar}>
-      {TABS.map((tab) => (
+      {tabs.map((tab) => (
         <TouchableOpacity
           key={tab.key}
           style={s.tab}
@@ -19,7 +23,9 @@ export default function TabBar({ active, onPress }) {
           activeOpacity={0.7}
         >
           <Text style={s.icon}>{tab.icon}</Text>
-          <Text style={active === tab.key ? s.labelActive : s.label}>{tab.label}</Text>
+          <Text style={active === tab.key ? s.labelActive : s.label}>
+            {tab.label}
+          </Text>
         </TouchableOpacity>
       ))}
     </View>

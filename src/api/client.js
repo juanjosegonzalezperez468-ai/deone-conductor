@@ -48,4 +48,17 @@ export const vehiculoApi = {
   obtener:   (conductorId) => api.get(`/conductores/vehiculo/${conductorId}`),
 };
 
+export const adminApi = {
+  conductoresPendientes: ()        => api.get('/admin/conductores/pendientes'),
+  conductoresActivos:    ()        => api.get('/admin/conductores/activos'),
+  aprobarConductor:      (id)      => api.patch(`/admin/conductor/${id}/aprobar`),
+  rechazarConductor:     (id, mot) => api.patch(`/admin/conductor/${id}/rechazar`, { motivo: mot }),
+  aprobarDocumento:      (id)      => api.patch(`/admin/documento/${id}/aprobar`),
+  rechazarDocumento:     (id, mot) => api.patch(`/admin/documento/${id}/rechazar`, { motivo: mot }),
+  recargasPendientes:    ()        => api.get('/admin/recargas/pendientes'),
+  aprobarRecarga:        (id)      => api.post(`/billing/aprobar/${id}`),
+  alertas:               ()        => api.get('/admin/alertas'),
+  estadisticas:          ()        => api.get('/admin/estadisticas'),
+};
+
 export default api;

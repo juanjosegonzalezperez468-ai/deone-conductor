@@ -1,35 +1,57 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
-import SplashScreen            from './src/screens/SplashScreen';
-import LoginScreen             from './src/screens/LoginScreen';
-import OTPScreen               from './src/screens/OTPScreen';
-import RegistroConductorScreen from './src/screens/RegistroConductorScreen';
-import PantallaPendienteScreen from './src/screens/PantallaPendienteScreen';
-import HomeScreen              from './src/screens/HomeScreen';
-import GananciasScreen         from './src/screens/GananciasScreen';
-import ActividadScreen         from './src/screens/ActividadScreen';
-import CuentaScreen            from './src/screens/CuentaScreen';
-import EnServicioScreen        from './src/screens/EnServicioScreen';
-import TabBar                  from './src/components/TabBar';
+import auth                        from '@react-native-firebase/auth';
+import SplashScreen                from './src/screens/SplashScreen';
+import LoginScreen                 from './src/screens/LoginScreen';
+import OTPScreen                   from './src/screens/OTPScreen';
+import RegistroConductorScreen     from './src/screens/RegistroConductorScreen';
+import PantallaPendienteScreen     from './src/screens/PantallaPendienteScreen';
+import HomeScreen                  from './src/screens/HomeScreen';
+import GananciasScreen             from './src/screens/GananciasScreen';
+import ActividadScreen             from './src/screens/ActividadScreen';
+import CuentaScreen                from './src/screens/CuentaScreen';
+import EnServicioScreen            from './src/screens/EnServicioScreen';
+import AdminScreen                 from './src/screens/AdminScreen';
+import DocumentosAdminScreen       from './src/screens/DocumentosAdminScreen';
+import TabBar                      from './src/components/TabBar';
+
+const ADMIN_PHONE = '+573239420671';
 
 export default function App() {
   const [screen,       setScreen]       = useState('Splash');
   const [screenParams, setScreenParams] = useState({});
   const [activeTab,    setActiveTab]    = useState('Home');
+  const [isAdmin,      setIsAdmin]      = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = auth().onAuthStateChanged((user) => {
+      setIsAdmin(user?.phoneNumber === ADMIN_PHONE);
+    });
+    return unsubscribe;
+  }, []);
 
   const navigate = (screenName, params) => {
     setScreenParams(params || {});
     setScreen(screenName);
   };
 
-  if (screen === 'Splash')           return <SplashScreen navigate={navigate} />;
-  if (screen === 'Login')            return <LoginScreen navigate={navigate} />;
-  if (screen === 'OTP')              return <OTPScreen navigate={navigate} params={screenParams} />;
+  if (screen === 'Splash')            return <SplashScreen navigate={navigate} />;
+  if (screen === 'Login')             return <LoginScreen navigate={navigate} />;
+  if (screen === 'OTP')               return <OTPScreen navigate={navigate} params={screenParams} />;
   if (screen === 'RegistroConductor') return <RegistroConductorScreen navigate={navigate} params={screenParams} />;
   if (screen === 'PantallaPendiente') return <PantallaPendienteScreen />;
 
   if (screen === 'EnServicio') {
     return <EnServicioScreen params={screenParams} goHome={() => navigate('App')} />;
+  }
+
+  if (screen === 'DocumentosAdmin') {
+    return (
+      <DocumentosAdminScreen
+        params={screenParams}
+        onBack={() => navigate('App')}
+      />
+    );
   }
 
   return (
@@ -38,7 +60,8 @@ export default function App() {
       {activeTab === 'Ganancias' && <GananciasScreen />}
       {activeTab === 'Actividad' && <ActividadScreen />}
       {activeTab === 'Cuenta'    && <CuentaScreen />}
-      <TabBar active={activeTab} onPress={setActiveTab} />
+      {activeTab === 'Admin'     && <AdminScreen navigate={navigate} />}
+      <TabBar active={activeTab} onPress={setActiveTab} isAdmin={isAdmin} />
     </View>
   );
 }
