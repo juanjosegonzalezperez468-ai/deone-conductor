@@ -46,7 +46,7 @@ function getLast7DaysChart(historial) {
   });
 }
 
-export default function GananciasScreen() {
+export default function GananciasScreen({ navigate }) {
   const [periodo, setPeriodo]     = useState('Hoy');
   const [historial, setHistorial] = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -127,6 +127,22 @@ export default function GananciasScreen() {
             <Text style={s.btnRecargarTxt}>Recargar</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Crédito WEWIN */}
+        <TouchableOpacity
+          style={s.wewinBanner}
+          onPress={() => navigate('CreditoWEWIN')}
+          activeOpacity={0.85}
+        >
+          <View style={s.wewinLeft}>
+            <Text style={s.wewinEmoji}>💳</Text>
+            <View>
+              <Text style={s.wewinTitle}>Crédito WEWIN</Text>
+              <Text style={s.wewinSub}>Solicita crédito según tu perfil Deone</Text>
+            </View>
+          </View>
+          <Text style={s.wewinArrow}>›</Text>
+        </TouchableOpacity>
 
         {/* Tabs de periodo */}
         <View style={s.tabsRow}>
@@ -261,6 +277,23 @@ const s = StyleSheet.create({
   saldoVal:       { color: C.black, fontSize: 28, fontWeight: '800' },
   btnRecargar:    { backgroundColor: C.yellow, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 10 },
   btnRecargarTxt: { color: C.black, fontSize: 13, fontWeight: '700' },
+
+  /* WEWIN banner */
+  wewinBanner: {
+    backgroundColor:   C.black,
+    borderRadius:      20,
+    padding:           16,
+    flexDirection:     'row',
+    alignItems:        'center',
+    justifyContent:    'space-between',
+    marginBottom:      14,
+    ...SHADOW,
+  },
+  wewinLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  wewinEmoji:{ fontSize: 24, marginRight: 12 },
+  wewinTitle:{ color: C.yellow, fontSize: 15, fontWeight: '800', marginBottom: 2 },
+  wewinSub:  { color: 'rgba(255,255,255,0.6)', fontSize: 12 },
+  wewinArrow:{ color: C.yellow, fontSize: 24, fontWeight: '300' },
 
   /* Tabs */
   tabsRow: {

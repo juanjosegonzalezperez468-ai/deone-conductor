@@ -13,6 +13,7 @@ import CuentaScreen                from './src/screens/CuentaScreen';
 import EnServicioScreen            from './src/screens/EnServicioScreen';
 import AdminScreen                 from './src/screens/AdminScreen';
 import DocumentosAdminScreen       from './src/screens/DocumentosAdminScreen';
+import CreditoWEWINScreen          from './src/screens/CreditoWEWINScreen';
 import TabBar                      from './src/components/TabBar';
 
 const ADMIN_PHONE = '+573239420671';
@@ -54,10 +55,14 @@ export default function App() {
     );
   }
 
+  if (screen === 'CreditoWEWIN') {
+    return <CreditoWEWINScreen onBack={() => navigate('App')} />;
+  }
+
   return (
     <View style={s.root}>
       {activeTab === 'Home'      && <HomeScreen navigate={navigate} />}
-      {activeTab === 'Ganancias' && <GananciasScreen />}
+      {activeTab === 'Ganancias' && <GananciasScreen navigate={navigate} />}
       {activeTab === 'Actividad' && <ActividadScreen />}
       {activeTab === 'Cuenta'    && <CuentaScreen />}
       {activeTab === 'Admin'     && <AdminScreen navigate={navigate} />}
