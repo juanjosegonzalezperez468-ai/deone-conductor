@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   StatusBar, ActivityIndicator, Linking, Image,
 } from 'react-native';
-import { conductorApi, billingApi } from '../api/client';
+import { conductorApi, billingApi, servicesApi } from '../api/client';
 import { getUid } from '../constants/config';
 import { C, SHADOW } from '../constants/theme';
 
@@ -23,16 +23,27 @@ export default function EnServicioScreen({ params, goHome }) {
     cliente_id:        clienteId   = '',
   } = solicitud;
 
-  const clienteNombre   = 'Andrea López';
-  const clienteRating   = '4.9';
-  const clienteTelefono = '+57 300 000 0000';
-  const inicial         = clienteNombre.charAt(0);
+  const [clienteNombre,   setClienteNombre]   = useState('');
+  const [clienteRating,   setClienteRating]   = useState('');
+  const [clienteTelefono, setClienteTelefono] = useState('');
+  const inicial = (clienteNombre || 'C').charAt(0);
 
   const [phase, setPhase]     = useState(0);
   const [loading, setLoading] = useState(false);
   const [elapsed, setElapsed] = useState(0);
 
   const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (!serviceId) return;
+    servicesApi.obtener(serviceId)
+      .then(({ data }) => {
+        if (data?.cliente_nombre)   setClienteNombre(data.cliente_nombre);
+        if (data?.cliente_rating)   setClienteRating(String(data.cliente_rating));
+        if (data?.cliente_telefono) setClienteTelefono(data.cliente_telefono);
+      })
+      .catch(() => {});
+  }, [serviceId]);
 
   useEffect(() => {
     if (phase === 1) {

@@ -40,6 +40,10 @@ export const authApi = {
   verificarOtp: (data) => api.post('/auth/verificar-otp', data),
 };
 
+export const servicesApi = {
+  obtener: (serviceId) => api.get(`/services/${serviceId}`),
+};
+
 export const documentosApi = {
   subir: (formData) =>
     api.post('/conductores/documentos/subir', formData, {

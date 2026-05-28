@@ -43,6 +43,27 @@
 --          notification=AndroidNotification(channel_id="solicitudes"))))
 --
 
+-- ─── 0b. Endpoints adicionales requeridos en el backend ──
+--
+-- GET /conductor/{uid}/perfil   (actualizar respuesta para incluir):
+--   → SELECT nombre, telefono, rating_promedio, total_viajes,
+--            fecha_registro, tipo_vehiculo
+--       FROM conductores WHERE uid = :uid
+--   Respuesta: { nombre, telefono, rating_promedio, total_viajes,
+--               fecha_registro, tipo_vehiculo }
+--
+-- GET /services/{service_id}   (nuevo endpoint – info del cliente):
+--   → SELECT s.*, c.nombre AS cliente_nombre,
+--             c.telefono AS cliente_telefono,
+--             c.rating_promedio AS cliente_rating
+--       FROM services s
+--       JOIN clientes c ON c.id = s.cliente_id
+--      WHERE s.id = :service_id
+--   Respuesta: { id, origen_direccion, destino_direccion,
+--               cliente_id, cliente_nombre, cliente_telefono,
+--               cliente_rating, precio_final, estado, created_at }
+--
+
 -- ─── 1. conductor_documentos ──────────────────────────────
 CREATE TABLE IF NOT EXISTS conductor_documentos (
   id             uuid        PRIMARY KEY DEFAULT gen_random_uuid(),

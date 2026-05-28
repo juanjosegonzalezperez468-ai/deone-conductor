@@ -584,7 +584,7 @@ export default function CuentaScreen() {
             <Text style={s.profileName}>{perfil.nombre || 'Conductor Deone'}</Text>
             <View style={s.ratingRow}>
               <Text style={s.star}>★</Text>
-              <Text style={s.ratingTxt}>4.8</Text>
+              <Text style={s.ratingTxt}>{(perfil?.rating_promedio ?? perfil?.rating)?.toFixed(1) ?? '—'}</Text>
               <Text style={s.ratingCount}> · Conductor</Text>
             </View>
           </View>

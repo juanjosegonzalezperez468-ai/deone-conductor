@@ -4,7 +4,7 @@ import {
   StatusBar, ActivityIndicator, Image, Modal, Switch,
 } from 'react-native';
 import * as Location from 'expo-location';
-import { conductorApi, locationsApi, billingApi, offersApi } from '../api/client';
+import { conductorApi, locationsApi, billingApi, offersApi, servicesApi } from '../api/client';
 import { SERVICES } from '../constants/services';
 import { getUid } from '../constants/config';
 import { C, SHADOW } from '../constants/theme';
@@ -39,6 +39,7 @@ export default function HomeScreen({ navigate }) {
   const [solicitud, setSolicitud]         = useState(null);
   const [timer, setTimer]                 = useState(TIMER_SECS);
   const [loadingAceptar, setLoadingAceptar] = useState(false);
+  const [nombre, setNombre]               = useState('');
 
   const seenIds   = useRef(new Set());
   const pollRef   = useRef(null);
@@ -60,6 +61,7 @@ export default function HomeScreen({ navigate }) {
   useEffect(() => {
     fetchSaldo();
     fetchHistorial();
+    fetchPerfil();
     const iv = setInterval(fetchSaldo, 30000);
     return () => clearInterval(iv);
   }, []);
@@ -67,6 +69,13 @@ export default function HomeScreen({ navigate }) {
   useEffect(() => {
     if (saldoInsuficiente && disponible) setDisponible(false);
   }, [saldo]);
+
+  const fetchPerfil = async () => {
+    try {
+      const { data } = await conductorApi.perfil(getUid());
+      if (data?.nombre) setNombre(data.nombre.split(' ')[0]);
+    } catch {}
+  };
 
   const fetchSaldo = async () => {
     try {
@@ -309,7 +318,7 @@ export default function HomeScreen({ navigate }) {
       <View style={s.header}>
         <Image source={require('../../assets/logo.png')} style={s.logo} resizeMode="contain" />
         <View style={s.headerRight}>
-          <Text style={s.hola}>Hola Juan 👋</Text>
+          <Text style={s.hola}>Hola {nombre || 'Conductor'} 👋</Text>
           <Text style={s.ciudad}>Manizales 📍</Text>
         </View>
       </View>
