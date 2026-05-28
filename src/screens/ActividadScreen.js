@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { conductorApi } from '../api/client';
 import { SERVICES } from '../constants/services';
-import { CONDUCTOR_ID } from '../constants/config';
+import { getUid } from '../constants/config';
 import { C, SHADOW } from '../constants/theme';
 
 export default function ActividadScreen() {
@@ -13,7 +13,7 @@ export default function ActividadScreen() {
   const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
-    conductorApi.historial(CONDUCTOR_ID)
+    conductorApi.historial(getUid())
       .then(({ data }) => setHistorial(Array.isArray(data) ? data : []))
       .catch(() => setHistorial([]))
       .finally(() => setLoading(false));

@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { conductorApi, billingApi } from '../api/client';
 import { SERVICES } from '../constants/services';
-import { CONDUCTOR_ID } from '../constants/config';
+import { getUid } from '../constants/config';
 import { C, SHADOW } from '../constants/theme';
 
 const PERIODOS = ['Hoy', 'Semana', 'Mes'];
@@ -55,10 +55,10 @@ export default function GananciasScreen({ navigate }) {
 
   useEffect(() => {
     Promise.all([
-      conductorApi.historial(CONDUCTOR_ID)
+      conductorApi.historial(getUid())
         .then(({ data }) => setHistorial(Array.isArray(data) ? data : []))
         .catch(() => {}),
-      billingApi.saldo(CONDUCTOR_ID)
+      billingApi.saldo(getUid())
         .then(({ data }) => {
           const val = typeof data === 'object' ? data.saldo : data;
           if (typeof val === 'number') setSaldo(val);

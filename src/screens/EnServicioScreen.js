@@ -4,7 +4,7 @@ import {
   StatusBar, ActivityIndicator, Linking, Image,
 } from 'react-native';
 import { conductorApi, billingApi } from '../api/client';
-import { CONDUCTOR_ID } from '../constants/config';
+import { getUid } from '../constants/config';
 import { C, SHADOW } from '../constants/theme';
 
 // Phases: 0 = EN_CAMINO, 1 = EN_VIAJE, 2 = COMPLETADO
@@ -61,7 +61,7 @@ export default function EnServicioScreen({ params, goHome }) {
 
     if (phase === 1) {
       await billingApi.descontarComision({
-        conductor_id: CONDUCTOR_ID,
+        conductor_id: getUid(),
         service_id:   serviceId,
         monto:        precioAceptado,
       }).catch(() => {});

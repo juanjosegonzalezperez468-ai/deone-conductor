@@ -6,7 +6,7 @@ import {
 import * as Location from 'expo-location';
 import { conductorApi, locationsApi, billingApi, offersApi } from '../api/client';
 import { SERVICES } from '../constants/services';
-import { CONDUCTOR_ID } from '../constants/config';
+import { getUid } from '../constants/config';
 import { C, SHADOW } from '../constants/theme';
 
 const TIMER_SECS = 30;
@@ -70,7 +70,7 @@ export default function HomeScreen({ navigate }) {
 
   const fetchSaldo = async () => {
     try {
-      const { data } = await billingApi.saldo(CONDUCTOR_ID);
+      const { data } = await billingApi.saldo(getUid());
       const val = typeof data === 'object' ? data.saldo : data;
       if (typeof val === 'number') setSaldo(val);
     } catch {}
@@ -78,7 +78,7 @@ export default function HomeScreen({ navigate }) {
 
   const fetchHistorial = async () => {
     try {
-      const { data } = await conductorApi.historial(CONDUCTOR_ID);
+      const { data } = await conductorApi.historial(getUid());
       if (Array.isArray(data)) {
         const hoy = data.filter(v => isHoy(v.created_at));
         setViajesHoy(hoy.length);
@@ -100,7 +100,7 @@ export default function HomeScreen({ navigate }) {
   useEffect(() => {
     if (!disponible || !location) return;
     locationsApi.actualizar({
-      conductor_id: CONDUCTOR_ID,
+      conductor_id: getUid(),
       lat: location.latitude,
       lng: location.longitude,
     }).catch(() => {});
@@ -152,7 +152,7 @@ export default function HomeScreen({ navigate }) {
     clearInterval(timerRef.current);
     try {
       await offersApi.crear({
-        conductor_id:  CONDUCTOR_ID,
+        conductor_id:  getUid(),
         service_id:    solicitud.id,
         precio_oferta: solicitud.precio_propuesto,
       });

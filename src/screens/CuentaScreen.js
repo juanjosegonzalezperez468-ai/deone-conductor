@@ -7,7 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   billingApi, conductorApi, documentosApi, vehiculoApi,
 } from '../api/client';
-import { CONDUCTOR_ID } from '../constants/config';
+import { getUid } from '../constants/config';
 import { C, SHADOW } from '../constants/theme';
 
 /* ─── Constants ─────────────────────────────────────────── */
@@ -60,7 +60,7 @@ function PerfilView({ perfil, onBack, onSave }) {
     if (!nombre.trim() || saving) return;
     setSaving(true);
     try {
-      await conductorApi.actualizarPerfil(CONDUCTOR_ID, { nombre: nombre.trim() });
+      await conductorApi.actualizarPerfil(getUid(), { nombre: nombre.trim() });
       await onSave();
       Alert.alert('Guardado', 'Perfil actualizado correctamente.');
     } catch {
@@ -180,7 +180,7 @@ function DocumentosView({ documentos, onBack, onRefresh }) {
       const formData = new FormData();
       formData.append('archivo', { uri, type: 'image/jpeg', name: `${tipo}.jpg` });
       formData.append('tipo_documento', tipo);
-      formData.append('conductor_id', CONDUCTOR_ID);
+      formData.append('conductor_id', getUid());
       await documentosApi.subir(formData);
       await onRefresh();
     } catch {
@@ -292,7 +292,7 @@ function VehiculoView({ vehiculo, onBack, onSave }) {
     setSaving(true);
     try {
       await vehiculoApi.registrar({
-        conductor_id:  CONDUCTOR_ID,
+        conductor_id:  getUid(),
         marca:         marca.trim(),
         modelo:        modelo.trim(),
         placa:         placa.trim().toUpperCase(),
@@ -503,22 +503,22 @@ export default function CuentaScreen() {
   };
 
   const fetchPenalizaciones = () =>
-    billingApi.penalizaciones(CONDUCTOR_ID)
+    billingApi.penalizaciones(getUid())
       .then(({ data }) => setPenalizaciones(data))
       .catch(() => setPenalizaciones({ advertencias: [], suspendido: false }));
 
   const fetchPerfil = () =>
-    conductorApi.perfil(CONDUCTOR_ID)
+    conductorApi.perfil(getUid())
       .then(({ data }) => { if (data) setPerfil(data); })
       .catch(() => {});
 
   const fetchDocumentos = () =>
-    documentosApi.obtener(CONDUCTOR_ID)
+    documentosApi.obtener(getUid())
       .then(({ data }) => setDocumentos(Array.isArray(data) ? data : []))
       .catch(() => setDocumentos([]));
 
   const fetchVehiculo = () =>
-    vehiculoApi.obtener(CONDUCTOR_ID)
+    vehiculoApi.obtener(getUid())
       .then(({ data }) => setVehiculo(data || null))
       .catch(() => setVehiculo(null));
 
@@ -679,7 +679,7 @@ export default function CuentaScreen() {
         <View style={s.idCard}>
           <Text style={s.idLbl}>ID CONDUCTOR</Text>
           <Text style={s.idVal} numberOfLines={1} ellipsizeMode="middle">
-            {CONDUCTOR_ID}
+            {getUid()}
           </Text>
         </View>
       </ScrollView>
