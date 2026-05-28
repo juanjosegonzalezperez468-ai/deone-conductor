@@ -13,6 +13,12 @@ export const conductorApi = {
   estadoViaje:      (serviceId, estado)   => api.patch(`/services/${serviceId}/estado`, { estado }),
   perfil:           (conductorId)         => api.get(`/conductor/${conductorId}/perfil`),
   actualizarPerfil: (conductorId, data)   => api.patch(`/conductor/${conductorId}/perfil`, data),
+  estado:           (conductorId)         => api.get(`/conductor/${conductorId}/estado`),
+};
+
+export const fcmApi = {
+  registrar: (conductorId, fcm_token) =>
+    api.patch(`/conductor/${conductorId}/fcm-token`, { fcm_token }),
 };
 
 export const offersApi = {

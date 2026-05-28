@@ -1,6 +1,48 @@
 -- Deone – Supabase migration
 -- Pegar y ejecutar en: Supabase → SQL Editor
 
+-- ─── 0. FCM token en tabla de conductores ─────────────────
+-- Ejecutar en la base de datos del backend (Railway/Postgres)
+-- ALTER TABLE conductores ADD COLUMN IF NOT EXISTS fcm_token TEXT;
+-- ALTER TABLE conductores ADD COLUMN IF NOT EXISTS estado_cuenta TEXT NOT NULL DEFAULT 'pendiente'
+--   CHECK (estado_cuenta IN ('pendiente', 'activo', 'rechazado'));
+-- ALTER TABLE conductores ADD COLUMN IF NOT EXISTS motivo_rechazo TEXT;
+--
+-- Nuevos endpoints requeridos en el backend (FastAPI):
+--
+-- PATCH /conductor/{uid}/fcm-token
+--   body: { fcm_token: str }
+--   → UPDATE conductores SET fcm_token = :token WHERE uid = :uid
+--
+-- GET /conductor/{uid}/estado
+--   → SELECT estado_cuenta, motivo_rechazo FROM conductores WHERE uid = :uid
+--
+-- PATCH /admin/conductor/{id}/aprobar  (ya existe, agregar FCM push)
+--   → UPDATE conductores SET estado_cuenta = 'activo'
+--   → messaging.send(Message(token=fcm_token,
+--        notification=Notification(title="✅ Cuenta activada",
+--                                  body="Ya puedes recibir viajes en Deone")))
+--
+-- PATCH /admin/conductor/{id}/rechazar  (ya existe, agregar FCM push)
+--   → UPDATE conductores SET estado_cuenta = 'rechazado', motivo_rechazo = :motivo
+--   → messaging.send(Message(token=fcm_token,
+--        notification=Notification(title="Solicitud rechazada",
+--                                  body=motivo)))
+--
+-- POST /services/crear  (cuando llega una nueva solicitud de cliente)
+--   → SELECT fcm_token FROM conductores
+--       WHERE disponible = true AND tipo_vehiculo = :tipo AND estado_cuenta = 'activo'
+--   → messaging.send_each_for_multicast(MulticastMessage(
+--        tokens=[...fcm_tokens],
+--        notification=Notification(
+--          title="Nueva solicitud 🚗",
+--          body=f"{origen} → {destino} · ${precio:,}"),
+--        data={"service_id": str(service_id), "screen": "Home"},
+--        android=AndroidConfig(
+--          priority="high",
+--          notification=AndroidNotification(channel_id="solicitudes"))))
+--
+
 -- ─── 1. conductor_documentos ──────────────────────────────
 CREATE TABLE IF NOT EXISTS conductor_documentos (
   id             uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
