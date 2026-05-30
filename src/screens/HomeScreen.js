@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, Alert, Linking,
-  StatusBar, ActivityIndicator, Image, Modal, Switch,
+  StatusBar, ActivityIndicator, Image, Modal, Switch, TextInput,
 } from 'react-native';
 import * as Location from 'expo-location';
 import { conductorApi, locationsApi, billingApi, offersApi, servicesApi } from '../api/client';
@@ -40,6 +40,10 @@ export default function HomeScreen({ navigate }) {
   const [timer, setTimer]                 = useState(TIMER_SECS);
   const [loadingAceptar, setLoadingAceptar] = useState(false);
   const [nombre, setNombre]               = useState('');
+  const [showContraInput, setShowContraInput] = useState(false);
+  const [precioContra, setPrecioContra]       = useState('');
+  const [loadingContra, setLoadingContra]     = useState(false);
+  const [exitoContra, setExitoContra]         = useState(false);
 
   const seenIds   = useRef(new Set());
   const pollRef   = useRef(null);
@@ -152,7 +156,43 @@ export default function HomeScreen({ navigate }) {
   const cerrarModal = () => {
     clearInterval(timerRef.current);
     setSolicitud(null);
+    setShowContraInput(false);
+    setPrecioContra('');
     if (disponible) pollRef.current = setInterval(poll, 8000);
+  };
+
+  const abrirContra = () => {
+    clearInterval(timerRef.current);
+    setShowContraInput(true);
+  };
+
+  const cancelarContra = () => {
+    setShowContraInput(false);
+    setPrecioContra('');
+    cerrarModal();
+  };
+
+  const enviarContraoferta = async () => {
+    const precio = Number(precioContra);
+    if (precio < 1000 || !solicitud || loadingContra) return;
+    setLoadingContra(true);
+    try {
+      await offersApi.crear({
+        service_id:      solicitud.id,
+        conductor_id:    getUid(),
+        precio_ofrecido: precio,
+        tipo:            'contraoferta',
+      });
+      setSolicitud(null);
+      setShowContraInput(false);
+      setPrecioContra('');
+      setExitoContra(true);
+      if (disponible) pollRef.current = setInterval(poll, 8000);
+      setTimeout(() => setExitoContra(false), 3000);
+    } catch {
+      Alert.alert('Error', 'No se pudo enviar la contraoferta. Intenta de nuevo.');
+    }
+    setLoadingContra(false);
   };
 
   const aceptarViaje = async () => {
@@ -230,89 +270,155 @@ export default function HomeScreen({ navigate }) {
     <View style={s.root}>
       <StatusBar backgroundColor={C.bg} barStyle="dark-content" />
 
-      {/* ───── MODAL SOLICITUD ───── */}
+      {/* ───── MODAL SOLICITUD / CONTRAOFERTA ───── */}
       <Modal visible={!!solicitud} transparent animationType="fade">
         <View style={s.overlay}>
-          <View style={s.modalCard}>
 
-            <View style={s.modalTop}>
-              <View style={s.nuevaBadge}>
-                <Text style={s.nuevaTxt}>🔔  NUEVO VIAJE</Text>
-              </View>
-              <View style={s.timerBox}>
-                <Text style={getTimerNumStyle()}>{timer}</Text>
-                <Text style={s.timerSeg}>seg</Text>
-              </View>
-            </View>
-
-            <View style={s.timerBarBg}>
-              <View style={getTimerFillStyle()} />
-            </View>
-
-            {srv && (
-              <View style={s.srvRow}>
-                <View style={s.srvIconWrap}>
-                  <Text style={s.srvEmoji}>{srv.icon}</Text>
+          {showContraInput ? (
+            <View style={s.modalCard}>
+              <View style={s.modalTop}>
+                <View style={s.nuevaBadge}>
+                  <Text style={s.nuevaTxt}>💰  CONTRAOFERTA</Text>
                 </View>
-                <Text style={s.srvName}>{srv.label}</Text>
-              </View>
-            )}
-
-            <View style={s.routeBox}>
-              <View style={s.routeItem}>
-                <View style={s.dotA} />
-                <View style={s.routeTexts}>
-                  <Text style={s.routeLabelSm}>📍 Origen</Text>
-                  <Text style={s.routeVal} numberOfLines={2}>
-                    {solicitud?.origen_direccion || '—'}
-                  </Text>
-                </View>
-              </View>
-              <View style={s.routeSep} />
-              <View style={s.routeItem}>
-                <View style={s.dotB} />
-                <View style={s.routeTexts}>
-                  <Text style={s.routeLabelSm}>📍 Destino</Text>
-                  <Text style={s.routeVal} numberOfLines={2}>
-                    {solicitud?.destino_direccion || '—'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={s.metaRow}>
-              <View style={s.metaItem}>
-                <Text style={s.metaVal}>
-                  ${Number(solicitud?.precio_propuesto || 0).toLocaleString('es-CO')}
+                <Text style={s.contraPrecioRef}>
+                  Cliente: ${Number(solicitud?.precio_propuesto || 0).toLocaleString('es-CO')}
                 </Text>
-                <Text style={s.metaLbl}>Precio</Text>
               </View>
-              <View style={s.metaDivider} />
-              <View style={s.metaItem}>
-                <Text style={s.metaVal}>{distKm} km</Text>
-                <Text style={s.metaLbl}>Distancia a ti</Text>
+
+              <Text style={s.contraLabel}>Tu precio propuesto</Text>
+
+              <View style={s.precioInputRow}>
+                <Text style={s.precioSym}>$</Text>
+                <TextInput
+                  style={s.precioField}
+                  value={precioContra}
+                  onChangeText={v => setPrecioContra(v.replace(/\D/g, ''))}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor="#AAAAAA"
+                  maxLength={7}
+                  autoFocus
+                />
+                <Text style={s.precioCOP}>COP</Text>
+              </View>
+
+              {Number(precioContra) > 0 && (
+                <Text style={s.precioFormateado}>
+                  ${Number(precioContra).toLocaleString('es-CO')} COP
+                </Text>
+              )}
+              {Number(precioContra) > 0 && Number(precioContra) < 1000 && (
+                <Text style={s.precioErrorTxt}>Mínimo $1.000</Text>
+              )}
+
+              <View style={s.btnRow}>
+                <TouchableOpacity style={s.btnRechazar} onPress={cancelarContra} activeOpacity={0.8}>
+                  <Text style={s.btnRechazarTxt}>CANCELAR</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={Number(precioContra) >= 1000 && !loadingContra ? s.btnAceptar : s.btnAceptarDis}
+                  onPress={enviarContraoferta}
+                  activeOpacity={0.85}
+                >
+                  {loadingContra
+                    ? <ActivityIndicator color={C.black} size="small" />
+                    : <Text style={s.btnAceptarTxt}>ENVIAR CONTRAOFERTA</Text>
+                  }
+                </TouchableOpacity>
               </View>
             </View>
+          ) : (
+            <View style={s.modalCard}>
+              <View style={s.modalTop}>
+                <View style={s.nuevaBadge}>
+                  <Text style={s.nuevaTxt}>🔔  NUEVO VIAJE</Text>
+                </View>
+                <View style={s.timerBox}>
+                  <Text style={getTimerNumStyle()}>{timer}</Text>
+                  <Text style={s.timerSeg}>seg</Text>
+                </View>
+              </View>
 
-            <View style={s.btnRow}>
-              <TouchableOpacity style={s.btnRechazar} onPress={cerrarModal} activeOpacity={0.8}>
-                <Text style={s.btnRechazarTxt}>RECHAZAR</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={loadingAceptar ? s.btnAceptarDis : s.btnAceptar}
-                onPress={aceptarViaje}
-                activeOpacity={0.85}
-              >
-                {loadingAceptar
-                  ? <ActivityIndicator color={C.black} size="small" />
-                  : <Text style={s.btnAceptarTxt}>ACEPTAR</Text>
-                }
-              </TouchableOpacity>
+              <View style={s.timerBarBg}>
+                <View style={getTimerFillStyle()} />
+              </View>
+
+              {srv && (
+                <View style={s.srvRow}>
+                  <View style={s.srvIconWrap}>
+                    <Text style={s.srvEmoji}>{srv.icon}</Text>
+                  </View>
+                  <Text style={s.srvName}>{srv.label}</Text>
+                </View>
+              )}
+
+              <View style={s.routeBox}>
+                <View style={s.routeItem}>
+                  <View style={s.dotA} />
+                  <View style={s.routeTexts}>
+                    <Text style={s.routeLabelSm}>📍 Origen</Text>
+                    <Text style={s.routeVal} numberOfLines={2}>
+                      {solicitud?.origen_direccion || '—'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={s.routeSep} />
+                <View style={s.routeItem}>
+                  <View style={s.dotB} />
+                  <View style={s.routeTexts}>
+                    <Text style={s.routeLabelSm}>📍 Destino</Text>
+                    <Text style={s.routeVal} numberOfLines={2}>
+                      {solicitud?.destino_direccion || '—'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <View style={s.metaRow}>
+                <View style={s.metaItem}>
+                  <Text style={s.metaVal}>
+                    ${Number(solicitud?.precio_propuesto || 0).toLocaleString('es-CO')}
+                  </Text>
+                  <Text style={s.metaLbl}>Precio</Text>
+                </View>
+                <View style={s.metaDivider} />
+                <View style={s.metaItem}>
+                  <Text style={s.metaVal}>{distKm} km</Text>
+                  <Text style={s.metaLbl}>Distancia a ti</Text>
+                </View>
+              </View>
+
+              <View style={s.btnCol}>
+                <View style={s.btnRow}>
+                  <TouchableOpacity style={s.btnRechazar} onPress={cerrarModal} activeOpacity={0.8}>
+                    <Text style={s.btnRechazarTxt}>RECHAZAR</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={s.btnContra} onPress={abrirContra} activeOpacity={0.8}>
+                    <Text style={s.btnContraTxt}>CONTRAOFERTAR</Text>
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity
+                  style={loadingAceptar ? s.btnAceptarDis : s.btnAceptar}
+                  onPress={aceptarViaje}
+                  activeOpacity={0.85}
+                >
+                  {loadingAceptar
+                    ? <ActivityIndicator color={C.black} size="small" />
+                    : <Text style={s.btnAceptarTxt}>ACEPTAR</Text>
+                  }
+                </TouchableOpacity>
+              </View>
             </View>
+          )}
 
-          </View>
         </View>
       </Modal>
+
+      {exitoContra && (
+        <View style={s.toastExito} pointerEvents="none">
+          <Text style={s.toastExitoTxt}>Contraoferta enviada ✓</Text>
+        </View>
+      )}
 
       {/* ───── HEADER ───── */}
       <View style={s.header}>
@@ -702,4 +808,62 @@ const s = StyleSheet.create({
     alignItems:      'center',
   },
   btnAceptarTxt: { color: C.black, fontSize: 15, fontWeight: '800', letterSpacing: 0.5 },
+
+  /* Button 2-row layout */
+  btnCol: { gap: 10 },
+
+  /* CONTRAOFERTAR button */
+  btnContra: {
+    flex:            1,
+    backgroundColor: C.white,
+    borderRadius:    16,
+    paddingVertical: 14,
+    alignItems:      'center',
+    borderWidth:     2,
+    borderColor:     C.yellow,
+  },
+  btnContraTxt: { color: C.black, fontSize: 13, fontWeight: '800', letterSpacing: 0.3 },
+
+  /* Contraoferta input screen */
+  contraPrecioRef: { color: C.gray, fontSize: 13 },
+  contraLabel: {
+    color:         C.gray,
+    fontSize:      12,
+    fontWeight:    '600',
+    letterSpacing: 1,
+    marginTop:     14,
+    marginBottom:  8,
+  },
+  precioInputRow: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    backgroundColor:   C.bg,
+    borderRadius:      16,
+    paddingHorizontal: 16,
+    paddingVertical:   4,
+    marginBottom:      8,
+    borderWidth:       2,
+    borderColor:       C.yellow,
+  },
+  precioSym:       { color: C.black, fontSize: 24, fontWeight: '800', marginRight: 4 },
+  precioField:     { flex: 1, color: C.black, fontSize: 28, fontWeight: '800', paddingVertical: 10 },
+  precioCOP:       { color: C.gray, fontSize: 14, fontWeight: '600', marginLeft: 4 },
+  precioFormateado:{ color: C.gray, fontSize: 13, textAlign: 'center', marginBottom: 4 },
+  precioErrorTxt:  { color: C.red,  fontSize: 12, textAlign: 'center', marginBottom: 8 },
+
+  /* Success toast */
+  toastExito: {
+    position:          'absolute',
+    bottom:            40,
+    left:              24,
+    right:             24,
+    backgroundColor:   C.black,
+    borderRadius:      16,
+    paddingVertical:   14,
+    paddingHorizontal: 20,
+    alignItems:        'center',
+    zIndex:            999,
+    ...SHADOW,
+  },
+  toastExitoTxt: { color: C.yellow, fontSize: 15, fontWeight: '800' },
 });
