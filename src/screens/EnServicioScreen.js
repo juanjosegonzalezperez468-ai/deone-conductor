@@ -103,6 +103,11 @@ export default function EnServicioScreen({ params, goHome }) {
     Linking.openURL(`tel:${clienteTelefono}`).catch(() => {});
   };
 
+  const handleNavegar = (lat, lng) => {
+    const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+    Linking.openURL(gmaps).catch(() => Linking.openURL(`geo:${lat},${lng}`));
+  };
+
   const comision     = Math.round(precioAceptado * 0.095);
   const totalNeto    = precioAceptado - comision;
 
@@ -179,6 +184,13 @@ export default function EnServicioScreen({ params, goHome }) {
               ? <ActivityIndicator color={C.black} size="small" />
               : <Text style={s.btnMainTxt}>HE LLEGADO AL CLIENTE</Text>
             }
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={s.btnNavegar}
+            onPress={() => handleNavegar(origenLat, origenLng)}
+            activeOpacity={0.85}
+          >
+            <Text style={s.btnNavegarTxt}>🗺️  NAVEGAR AL CLIENTE</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -267,6 +279,13 @@ export default function EnServicioScreen({ params, goHome }) {
               ? <ActivityIndicator color={C.black} size="small" />
               : <Text style={s.btnMainTxt}>FINALIZAR VIAJE</Text>
             }
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={s.btnNavegar}
+            onPress={() => handleNavegar(destinoLat, destinoLng)}
+            activeOpacity={0.85}
+          >
+            <Text style={s.btnNavegarTxt}>🗺️  NAVEGAR AL DESTINO</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -481,6 +500,16 @@ const s = StyleSheet.create({
     alignItems:      'center',
   },
   btnMainTxt: { color: C.black, fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
+  btnNavegar: {
+    backgroundColor: C.white,
+    borderRadius:    20,
+    paddingVertical: 14,
+    alignItems:      'center',
+    marginTop:       10,
+    borderWidth:     2,
+    borderColor:     C.yellow,
+  },
+  btnNavegarTxt: { color: C.black, fontSize: 14, fontWeight: '700', letterSpacing: 0.3 },
 
   /* ── COMPLETADO ── */
   completadoRoot: {
