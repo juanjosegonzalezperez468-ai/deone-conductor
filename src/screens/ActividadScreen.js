@@ -48,9 +48,9 @@ export default function ActividadScreen() {
 
         {!loading && completados.length === 0 && (
           <View style={s.emptyWrap}>
-            <Text style={s.emptyIcon}>📋</Text>
-            <Text style={s.emptyTitle}>Sin viajes aún</Text>
-            <Text style={s.emptySub}>Actívate y comienza a recibir solicitudes</Text>
+            <Text style={s.emptyIcon}>🏍️</Text>
+            <Text style={s.emptyTitle}>Aún no tienes viajes completados</Text>
+            <Text style={s.emptySub}>¡Actívate y empieza a ganar!{'\n'}Cada viaje suma a tu historial.</Text>
           </View>
         )}
 
