@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  StatusBar, ActivityIndicator, Linking, Image,
+  StatusBar, ActivityIndicator, Linking, Image, Modal,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
+import ChatScreen from './ChatScreen';
 import { conductorApi, billingApi, servicesApi } from '../api/client';
 import { getUid } from '../constants/config';
 import { C, SHADOW } from '../constants/theme';
@@ -33,9 +34,10 @@ export default function EnServicioScreen({ params, goHome }) {
   const [clienteTelefono, setClienteTelefono] = useState('');
   const inicial = (clienteNombre || 'C').charAt(0);
 
-  const [phase, setPhase]     = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [elapsed, setElapsed] = useState(0);
+  const [phase, setPhase]         = useState(0);
+  const [loading, setLoading]     = useState(false);
+  const [elapsed, setElapsed]     = useState(0);
+  const [chatVisible, setChatVisible] = useState(false);
 
   const timerRef = useRef(null);
   const mapRef   = useRef(null);
@@ -108,8 +110,14 @@ export default function EnServicioScreen({ params, goHome }) {
     Linking.openURL(gmaps).catch(() => Linking.openURL(`geo:${lat},${lng}`));
   };
 
-  const comision     = Math.round(precioAceptado * 0.095);
-  const totalNeto    = precioAceptado - comision;
+  const comision  = Math.round(precioAceptado * 0.095);
+  const totalNeto = precioAceptado - comision;
+
+  const chatModal = (
+    <Modal visible={chatVisible} animationType="slide" onRequestClose={() => setChatVisible(false)}>
+      <ChatScreen serviceId={serviceId} onClose={() => setChatVisible(false)} />
+    </Modal>
+  );
 
   /* ── PHASE 0: EN CAMINO ── */
   if (phase === 0) {
@@ -185,14 +193,16 @@ export default function EnServicioScreen({ params, goHome }) {
               : <Text style={s.btnMainTxt}>HE LLEGADO AL CLIENTE</Text>
             }
           </TouchableOpacity>
-          <TouchableOpacity
-            style={s.btnNavegar}
-            onPress={() => handleNavegar(origenLat, origenLng)}
-            activeOpacity={0.85}
-          >
-            <Text style={s.btnNavegarTxt}>🗺️  NAVEGAR AL CLIENTE</Text>
-          </TouchableOpacity>
+          <View style={s.secondaryBtns}>
+            <TouchableOpacity style={s.btnNavegar} onPress={() => handleNavegar(origenLat, origenLng)} activeOpacity={0.85}>
+              <Text style={s.btnNavegarTxt}>🗺️  NAVEGAR</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.btnNavegar} onPress={() => setChatVisible(true)} activeOpacity={0.85}>
+              <Text style={s.btnNavegarTxt}>💬  CHAT</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+        {chatModal}
       </View>
     );
   }
@@ -280,14 +290,16 @@ export default function EnServicioScreen({ params, goHome }) {
               : <Text style={s.btnMainTxt}>FINALIZAR VIAJE</Text>
             }
           </TouchableOpacity>
-          <TouchableOpacity
-            style={s.btnNavegar}
-            onPress={() => handleNavegar(destinoLat, destinoLng)}
-            activeOpacity={0.85}
-          >
-            <Text style={s.btnNavegarTxt}>🗺️  NAVEGAR AL DESTINO</Text>
-          </TouchableOpacity>
+          <View style={s.secondaryBtns}>
+            <TouchableOpacity style={s.btnNavegar} onPress={() => handleNavegar(destinoLat, destinoLng)} activeOpacity={0.85}>
+              <Text style={s.btnNavegarTxt}>🗺️  NAVEGAR</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.btnNavegar} onPress={() => setChatVisible(true)} activeOpacity={0.85}>
+              <Text style={s.btnNavegarTxt}>💬  CHAT</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+        {chatModal}
       </View>
     );
   }
@@ -500,16 +512,17 @@ const s = StyleSheet.create({
     alignItems:      'center',
   },
   btnMainTxt: { color: C.black, fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
+  secondaryBtns: { flexDirection: 'row', gap: 10, marginTop: 10 },
   btnNavegar: {
+    flex:            1,
     backgroundColor: C.white,
     borderRadius:    20,
     paddingVertical: 14,
     alignItems:      'center',
-    marginTop:       10,
     borderWidth:     2,
     borderColor:     C.yellow,
   },
-  btnNavegarTxt: { color: C.black, fontSize: 14, fontWeight: '700', letterSpacing: 0.3 },
+  btnNavegarTxt: { color: C.black, fontSize: 13, fontWeight: '700', letterSpacing: 0.3 },
 
   /* ── COMPLETADO ── */
   completadoRoot: {

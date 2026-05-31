@@ -17,6 +17,7 @@ import EnServicioScreen            from './src/screens/EnServicioScreen';
 import AdminScreen                 from './src/screens/AdminScreen';
 import DocumentosAdminScreen       from './src/screens/DocumentosAdminScreen';
 import CreditoWEWINScreen          from './src/screens/CreditoWEWINScreen';
+import ChatScreen                  from './src/screens/ChatScreen';
 import TabBar                      from './src/components/TabBar';
 
 const ADMIN_PHONE = '+573239420671';
@@ -92,6 +93,10 @@ export default function App() {
 
   if (screen === 'EnServicio') {
     return <EnServicioScreen params={screenParams} goHome={() => navigate('App')} />;
+  }
+
+  if (screen === 'Chat') {
+    return <ChatScreen serviceId={screenParams.serviceId} onClose={() => navigate('App')} />;
   }
 
   if (screen === 'DocumentosAdmin') {

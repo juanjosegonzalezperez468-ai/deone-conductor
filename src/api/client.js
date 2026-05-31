@@ -58,6 +58,17 @@ export const vehiculoApi = {
   obtener:   (conductorId) => api.get(`/conductores/vehiculo/${conductorId}`),
 };
 
+export const chatApi = {
+  getMensajes:   (serviceId, readerId) =>
+    api.get(`/chat/${serviceId}/mensajes`, { params: { reader_id: readerId } }),
+  enviarMensaje: (serviceId, senderId, mensaje) =>
+    api.post(`/chat/${serviceId}/mensaje`, {
+      sender_id:   senderId,
+      sender_tipo: 'conductor',
+      mensaje,
+    }),
+};
+
 export const adminApi = {
   conductoresPendientes: ()        => api.get('/admin/conductores/pendientes'),
   conductoresActivos:    ()        => api.get('/admin/conductores/activos'),
