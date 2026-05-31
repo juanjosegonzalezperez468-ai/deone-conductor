@@ -4,6 +4,7 @@ import {
   StatusBar, ActivityIndicator, Image, Modal, Switch, TextInput,
 } from 'react-native';
 import * as Location from 'expo-location';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { conductorApi, locationsApi, billingApi, offersApi, servicesApi } from '../api/client';
 import { SERVICES } from '../constants/services';
 import { getUid } from '../constants/config';
@@ -49,8 +50,19 @@ export default function HomeScreen({ navigate }) {
   const pollRef   = useRef(null);
   const timerRef  = useRef(null);
   const locationRef = useRef(null);
+  const mapRef    = useRef(null);
 
   useEffect(() => { locationRef.current = location; }, [location]);
+
+  useEffect(() => {
+    if (!location || !mapRef.current) return;
+    mapRef.current.animateToRegion({
+      latitude:       location.latitude,
+      longitude:      location.longitude,
+      latitudeDelta:  0.012,
+      longitudeDelta: 0.012,
+    }, 800);
+  }, [location]);
 
   useEffect(() => {
     (async () => {
@@ -492,33 +504,40 @@ export default function HomeScreen({ navigate }) {
 
       {/* ───── MAPA ───── */}
       <View style={s.mapArea}>
-        {/* Grid lines */}
-        <View style={s.mH1} /><View style={s.mH2} /><View style={s.mH3} />
-        <View style={s.mV1} /><View style={s.mV2} /><View style={s.mV3} />
-        {/* Streets */}
-        <View style={s.street1} />
-        <View style={s.street2} />
-        {/* Driver pin */}
-        <View style={s.pinWrap}>
-          <View style={disponible ? s.pinBgOn : s.pinBgOff}>
-            <Text style={s.pinEmoji}>🏍️</Text>
-          </View>
-          <View style={s.pinTail} />
-          {disponible && <View style={s.pingRing} />}
+        <MapView
+          ref={mapRef}
+          provider={PROVIDER_GOOGLE}
+          style={s.map}
+          initialRegion={{
+            latitude:       location?.latitude  ?? 5.0703,
+            longitude:      location?.longitude ?? -75.5138,
+            latitudeDelta:  0.012,
+            longitudeDelta: 0.012,
+          }}
+          showsMyLocationButton={false}
+          showsCompass={false}
+          toolbarEnabled={false}
+          rotateEnabled={false}
+          pitchEnabled={false}
+        >
+          {location && (
+            <Marker
+              coordinate={{ latitude: location.latitude, longitude: location.longitude }}
+              anchor={{ x: 0.5, y: 0.5 }}
+            >
+              <View style={disponible ? s.pinBgOn : s.pinBgOff}>
+                <Text style={s.pinEmoji}>🏍️</Text>
+              </View>
+            </Marker>
+          )}
+        </MapView>
+        <View style={s.coordBadge}>
+          <Text style={s.coordTxt}>
+            {location
+              ? `${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`
+              : 'Obteniendo ubicación…'}
+          </Text>
         </View>
-        {/* Coord badge */}
-        {location && (
-          <View style={s.coordBadge}>
-            <Text style={s.coordTxt}>
-              {location.latitude.toFixed(4)}, {location.longitude.toFixed(4)}
-            </Text>
-          </View>
-        )}
-        {!location && (
-          <View style={s.coordBadge}>
-            <Text style={s.coordTxt}>Obteniendo ubicación…</Text>
-          </View>
-        )}
       </View>
 
     </View>
@@ -610,41 +629,13 @@ const s = StyleSheet.create({
   /* Map area */
   mapArea: {
     flex:            1,
-    backgroundColor: '#E4EDE4',
-    position:        'relative',
-    alignItems:      'center',
-    justifyContent:  'center',
-    marginHorizontal:16,
+    marginHorizontal: 16,
     marginBottom:    16,
     borderRadius:    24,
     overflow:        'hidden',
     ...SHADOW,
   },
-  mH1: { position: 'absolute', left: 0, right: 0, top: '25%', height: 1, backgroundColor: '#D2DDD2' },
-  mH2: { position: 'absolute', left: 0, right: 0, top: '50%', height: 1, backgroundColor: '#D2DDD2' },
-  mH3: { position: 'absolute', left: 0, right: 0, top: '75%', height: 1, backgroundColor: '#D2DDD2' },
-  mV1: { position: 'absolute', top: 0, bottom: 0, left: '25%', width: 1, backgroundColor: '#D2DDD2' },
-  mV2: { position: 'absolute', top: 0, bottom: 0, left: '50%', width: 1, backgroundColor: '#D2DDD2' },
-  mV3: { position: 'absolute', top: 0, bottom: 0, left: '75%', width: 1, backgroundColor: '#D2DDD2' },
-  street1: {
-    position:        'absolute',
-    top:             '35%',
-    left:            0,
-    right:           0,
-    height:          8,
-    backgroundColor: '#C8D5C8',
-    opacity:         0.7,
-  },
-  street2: {
-    position:        'absolute',
-    top:             0,
-    bottom:          0,
-    left:            '40%',
-    width:           8,
-    backgroundColor: '#C8D5C8',
-    opacity:         0.7,
-  },
-  pinWrap:  { alignItems: 'center', justifyContent: 'center' },
+  map: { flex: 1 },
   pinBgOff: {
     width:           48,
     height:          48,
@@ -667,22 +658,6 @@ const s = StyleSheet.create({
     elevation:       6,
   },
   pinEmoji: { fontSize: 24 },
-  pinTail: {
-    width:           4,
-    height:          8,
-    backgroundColor: C.yellow,
-    borderBottomLeftRadius:  2,
-    borderBottomRightRadius: 2,
-  },
-  pingRing: {
-    position:        'absolute',
-    width:           80,
-    height:          80,
-    borderRadius:    40,
-    borderWidth:     2,
-    borderColor:     C.yellow,
-    opacity:         0.3,
-  },
   coordBadge: {
     position:        'absolute',
     bottom:          12,

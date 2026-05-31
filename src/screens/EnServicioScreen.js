@@ -3,6 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet,
   StatusBar, ActivityIndicator, Linking, Image,
 } from 'react-native';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { conductorApi, billingApi, servicesApi } from '../api/client';
 import { getUid } from '../constants/config';
 import { C, SHADOW } from '../constants/theme';
@@ -21,6 +22,10 @@ export default function EnServicioScreen({ params, goHome }) {
     origen_direccion:  origenDir   = 'Punto de recogida',
     destino_direccion: destinoDir  = 'Destino',
     cliente_id:        clienteId   = '',
+    origen_lat:        origenLat   = 5.0703,
+    origen_lng:        origenLng   = -75.5138,
+    destino_lat:       destinoLat  = 5.0650,
+    destino_lng:       destinoLng  = -75.5100,
   } = solicitud;
 
   const [clienteNombre,   setClienteNombre]   = useState('');
@@ -33,6 +38,18 @@ export default function EnServicioScreen({ params, goHome }) {
   const [elapsed, setElapsed] = useState(0);
 
   const timerRef = useRef(null);
+  const mapRef   = useRef(null);
+
+  const fitMap = () => {
+    if (!mapRef.current) return;
+    mapRef.current.fitToCoordinates(
+      [
+        { latitude: origenLat,  longitude: origenLng },
+        { latitude: destinoLat, longitude: destinoLng },
+      ],
+      { edgePadding: { top: 90, right: 60, bottom: 60, left: 60 }, animated: false }
+    );
+  };
 
   useEffect(() => {
     if (!serviceId) return;
@@ -97,18 +114,32 @@ export default function EnServicioScreen({ params, goHome }) {
 
         {/* Mapa */}
         <View style={s.mapFull}>
-          <View style={s.mgH1} /><View style={s.mgH2} />
-          <View style={s.mgV1} /><View style={s.mgV2} />
-          <View style={s.street1} /><View style={s.street2} />
-          {/* Ruta animada */}
-          <View style={s.routeLine} />
-          <View style={s.originPin}>
-            <View style={s.pinYellow}><Text style={s.pinEmoji}>🏍️</Text></View>
-          </View>
-          <View style={s.destPin}>
-            <View style={s.pinBlack}><Text style={s.pinDestEmoji}>📍</Text></View>
-          </View>
-          {/* Badge estado */}
+          <MapView
+            ref={mapRef}
+            provider={PROVIDER_GOOGLE}
+            style={s.absoluteMap}
+            onMapReady={fitMap}
+            showsMyLocationButton={false}
+            showsCompass={false}
+            toolbarEnabled={false}
+            rotateEnabled={false}
+            pitchEnabled={false}
+          >
+            <Marker coordinate={{ latitude: origenLat, longitude: origenLng }} anchor={{ x: 0.5, y: 1 }}>
+              <View style={s.pinYellow}><Text style={s.pinEmoji}>📍</Text></View>
+            </Marker>
+            <Marker coordinate={{ latitude: destinoLat, longitude: destinoLng }} anchor={{ x: 0.5, y: 1 }}>
+              <View style={s.pinBlack}><Text style={s.pinDestEmoji}>🏁</Text></View>
+            </Marker>
+            <Polyline
+              coordinates={[
+                { latitude: origenLat,  longitude: origenLng },
+                { latitude: destinoLat, longitude: destinoLng },
+              ]}
+              strokeColor={C.yellow}
+              strokeWidth={3}
+            />
+          </MapView>
           <View style={s.statusBadge}>
             <View style={s.pulseDot} />
             <Text style={s.statusTxt}>EN CAMINO AL CLIENTE</Text>
@@ -170,16 +201,32 @@ export default function EnServicioScreen({ params, goHome }) {
 
         {/* Mapa */}
         <View style={s.mapFull}>
-          <View style={s.mgH1} /><View style={s.mgH2} />
-          <View style={s.mgV1} /><View style={s.mgV2} />
-          <View style={s.street1} /><View style={s.street2} />
-          <View style={s.routeLineLong} />
-          <View style={s.carPin}>
-            <View style={s.pinYellow}><Text style={s.pinEmoji}>🏍️</Text></View>
-          </View>
-          <View style={s.destPinViaje}>
-            <View style={s.pinBlack}><Text style={s.pinDestEmoji}>📍</Text></View>
-          </View>
+          <MapView
+            ref={mapRef}
+            provider={PROVIDER_GOOGLE}
+            style={s.absoluteMap}
+            onMapReady={fitMap}
+            showsMyLocationButton={false}
+            showsCompass={false}
+            toolbarEnabled={false}
+            rotateEnabled={false}
+            pitchEnabled={false}
+          >
+            <Marker coordinate={{ latitude: origenLat, longitude: origenLng }} anchor={{ x: 0.5, y: 1 }}>
+              <View style={s.pinYellow}><Text style={s.pinEmoji}>📍</Text></View>
+            </Marker>
+            <Marker coordinate={{ latitude: destinoLat, longitude: destinoLng }} anchor={{ x: 0.5, y: 1 }}>
+              <View style={s.pinBlack}><Text style={s.pinDestEmoji}>🏁</Text></View>
+            </Marker>
+            <Polyline
+              coordinates={[
+                { latitude: origenLat,  longitude: origenLng },
+                { latitude: destinoLat, longitude: destinoLng },
+              ]}
+              strokeColor={C.yellow}
+              strokeWidth={3}
+            />
+          </MapView>
         </View>
 
         {/* Card info viaje */}
@@ -277,47 +324,10 @@ const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: C.bg },
 
   /* ── MAPA ── */
-  mapFull: {
-    flex:            1,
-    backgroundColor: '#E4EDE4',
-    position:        'relative',
-    alignItems:      'center',
-    justifyContent:  'center',
-  },
-  mgH1:    { position: 'absolute', left: 0, right: 0, top: '33%', height: 1, backgroundColor: '#D2DDD2' },
-  mgH2:    { position: 'absolute', left: 0, right: 0, top: '66%', height: 1, backgroundColor: '#D2DDD2' },
-  mgV1:    { position: 'absolute', top: 0, bottom: 0, left: '33%', width: 1, backgroundColor: '#D2DDD2' },
-  mgV2:    { position: 'absolute', top: 0, bottom: 0, left: '66%', width: 1, backgroundColor: '#D2DDD2' },
-  street1: { position: 'absolute', top: '40%', left: 0, right: 0, height: 8, backgroundColor: '#C8D5C8', opacity: 0.7 },
-  street2: { position: 'absolute', top: 0, bottom: 0, left: '45%', width: 8, backgroundColor: '#C8D5C8', opacity: 0.7 },
-
-  /* Route */
-  routeLine: {
-    position:        'absolute',
-    width:           3,
-    height:          120,
-    backgroundColor: C.yellow,
-    top:             '30%',
-    left:            '46%',
-    borderRadius:    2,
-    opacity:         0.8,
-  },
-  routeLineLong: {
-    position:        'absolute',
-    width:           3,
-    height:          160,
-    backgroundColor: C.yellow,
-    top:             '20%',
-    left:            '46%',
-    borderRadius:    2,
-    opacity:         0.8,
-  },
+  mapFull:    { flex: 1, position: 'relative' },
+  absoluteMap:{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 },
 
   /* Pins */
-  originPin: { position: 'absolute', top: '28%', left: '43%' },
-  destPin:   { position: 'absolute', top: '60%', left: '43%' },
-  carPin:    { position: 'absolute', top: '24%', left: '43%' },
-  destPinViaje: { position: 'absolute', top: '62%', left: '43%' },
   pinYellow: {
     width:           44,
     height:          44,
