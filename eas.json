@@ -20,8 +20,7 @@
     "production": {
       "autoIncrement": true,
       "android": {
-        "buildType": "app-bundle",
-        "googleServicesFile": "$GOOGLE_SERVICES_JSON"
+        "buildType": "app-bundle"
       }
     }
   },
