@@ -20,7 +20,7 @@ export default function LoginScreen({ navigate }) {
       const confirmation = await auth().signInWithPhoneNumber('+57' + digits);
       navigate('OTP', { confirmation, phone: '+57' + digits });
     } catch (err) {
-      const errorMsg = err?.code || err?.message || JSON.stringify(err);
+      const errorMsg = `CODE: ${err?.code}\nMSG: ${err?.message}\nFULL: ${JSON.stringify(err)}`;
       Alert.alert('Error Firebase', errorMsg);
     } finally {
       setLoading(false);
