@@ -7,7 +7,7 @@ import * as Location from 'expo-location';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { conductorApi, locationsApi, billingApi, offersApi, servicesApi, vehiculoApi } from '../api/client';
 import { SERVICES } from '../constants/services';
-import { getUid } from '../constants/config';
+import { getUserUuid } from '../utils/tokenStorage';
 import { C, SHADOW } from '../constants/theme';
 
 const TIMER_SECS = 30;
@@ -46,11 +46,12 @@ export default function HomeScreen({ navigate }) {
   const [loadingContra, setLoadingContra]     = useState(false);
   const [exitoContra, setExitoContra]         = useState(false);
 
-  const seenIds   = useRef(new Set());
-  const pollRef   = useRef(null);
-  const timerRef  = useRef(null);
+  const seenIds     = useRef(new Set());
+  const pollRef     = useRef(null);
+  const timerRef    = useRef(null);
   const locationRef = useRef(null);
-  const mapRef    = useRef(null);
+  const mapRef      = useRef(null);
+  const uuidRef     = useRef('');
 
   useEffect(() => { locationRef.current = location; }, [location]);
 
@@ -75,10 +76,13 @@ export default function HomeScreen({ navigate }) {
   }, []);
 
   useEffect(() => {
-    fetchSaldo();
-    fetchHistorial();
-    fetchPerfil();
-    fetchVehiculo();
+    getUserUuid().then((uuid) => {
+      if (uuid) uuidRef.current = uuid;
+      fetchSaldo();
+      fetchHistorial();
+      fetchPerfil();
+      fetchVehiculo();
+    });
     const iv = setInterval(fetchSaldo, 30000);
     return () => clearInterval(iv);
   }, []);
@@ -89,21 +93,21 @@ export default function HomeScreen({ navigate }) {
 
   const fetchPerfil = async () => {
     try {
-      const { data } = await conductorApi.perfil(getUid());
+      const { data } = await conductorApi.perfil(uuidRef.current);
       if (data?.nombre) setNombre(data.nombre.split(' ')[0]);
     } catch {}
   };
 
   const fetchVehiculo = async () => {
     try {
-      const { data } = await vehiculoApi.obtener(getUid());
+      const { data } = await vehiculoApi.obtener(uuidRef.current);
       if (data?.tipo_servicio) setTipoServicio(data.tipo_servicio);
     } catch {}
   };
 
   const fetchSaldo = async () => {
     try {
-      const { data } = await billingApi.saldo(getUid());
+      const { data } = await billingApi.saldo(uuidRef.current);
       const val = typeof data === 'object' ? data.saldo : data;
       if (typeof val === 'number') setSaldo(val);
     } catch {}
@@ -111,7 +115,7 @@ export default function HomeScreen({ navigate }) {
 
   const fetchHistorial = async () => {
     try {
-      const { data } = await conductorApi.historial(getUid());
+      const { data } = await conductorApi.historial(uuidRef.current);
       if (Array.isArray(data)) {
         const hoy = data.filter(v => isHoy(v.created_at));
         setViajesHoy(hoy.length);
@@ -131,13 +135,15 @@ export default function HomeScreen({ navigate }) {
   }, [disponible, tipoServicio]);
 
   useEffect(() => {
-    if (!disponible || !location) return;
+    if (!location) return;
     locationsApi.actualizar({
-      conductor_id: getUid(),
-      lat: location.latitude,
-      lng: location.longitude,
+      conductor_id:      uuidRef.current,
+      lat:               location.latitude,
+      lng:               location.longitude,
+      disponible,
+      servicios_activos: disponible && tipoServicio ? [tipoServicio] : [],
     }).catch(() => {});
-  }, [disponible, location]);
+  }, [disponible, location, tipoServicio]);
 
   const poll = async () => {
     const loc = locationRef.current;
@@ -198,8 +204,8 @@ export default function HomeScreen({ navigate }) {
     setLoadingContra(true);
     try {
       await offersApi.crear({
-        service_id:      solicitud.id,
-        conductor_id:    getUid(),
+        request_id:      solicitud.id,
+        conductor_id:    uuidRef.current,
         precio_ofrecido: precio,
         tipo:            'contraoferta',
       });
@@ -221,9 +227,10 @@ export default function HomeScreen({ navigate }) {
     clearInterval(timerRef.current);
     try {
       await offersApi.crear({
-        conductor_id:  getUid(),
-        service_id:    solicitud.id,
-        precio_oferta: solicitud.precio_propuesto,
+        conductor_id:    uuidRef.current,
+        request_id:      solicitud.id,
+        precio_ofrecido: solicitud.precio_propuesto,
+        tipo:            'acepta',
       });
       const captured = solicitud;
       setSolicitud(null);

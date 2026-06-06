@@ -4,7 +4,9 @@ import {
   ScrollView, StyleSheet, StatusBar, ActivityIndicator,
   Alert, Modal,
 } from 'react-native';
-import { authApi } from '../api/client';
+import * as Notifications from 'expo-notifications';
+import { authApi, fcmApi } from '../api/client';
+import { storeBackendToken, storePhone, storeUserUuid } from '../utils/tokenStorage';
 import { C, SHADOW } from '../constants/theme';
 
 const VEHICLES = [
@@ -27,13 +29,24 @@ export default function RegistroConductorScreen({ navigate, params }) {
     if (!valid || loading) return;
     setLoading(true);
     try {
-      await authApi.verificarOtp({
-        phone,
-        uid:           user.uid,
+      const idToken = await user.getIdToken();
+      const { data } = await authApi.verificarOtp({
+        telefono:      phone,
+        token:         idToken,
         nombre:        nombre.trim(),
         tipo_vehiculo: vehiculo,
         tipo:          'conductor',
       });
+      await storeBackendToken(data.token);
+      await storeUserUuid(data.usuario.id);
+      await storePhone(phone);
+      try {
+        const { status } = await Notifications.requestPermissionsAsync();
+        if (status === 'granted') {
+          const pushToken = await Notifications.getDevicePushTokenAsync();
+          await fcmApi.registrar(data.usuario.id, pushToken.data);
+        }
+      } catch {}
       setShowWelcome(true);
     } catch (err) {
       const errorMsg = err?.response?.data?.detail ||

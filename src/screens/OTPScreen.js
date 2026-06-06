@@ -4,6 +4,9 @@ import {
   ScrollView, StyleSheet, StatusBar, ActivityIndicator, Alert,
 } from 'react-native';
 import auth from '@react-native-firebase/auth';
+import * as Notifications from 'expo-notifications';
+import { authApi, fcmApi } from '../api/client';
+import { storeBackendToken, storePhone, storeUserUuid } from '../utils/tokenStorage';
 import { C } from '../constants/theme';
 
 export default function OTPScreen({ navigate, params }) {
@@ -41,10 +44,31 @@ export default function OTPScreen({ navigate, params }) {
     try {
       const result = await confirmation.confirm(code);
       const isNew = result.additionalUserInfo?.isNewUser ?? false;
+      await storePhone(phone);
       if (isNew) {
         navigate('RegistroConductor', { user: result.user, phone });
       } else {
-        navigate('App');
+        try {
+          const idToken = await result.user.getIdToken();
+          const { data } = await authApi.verificarOtp({
+            telefono: phone,
+            token:    idToken,
+            tipo:     'conductor',
+            nombre:   'conductor',
+          });
+          await storeBackendToken(data.token);
+          await storeUserUuid(data.usuario.id);
+          try {
+            const { status } = await Notifications.requestPermissionsAsync();
+            if (status === 'granted') {
+              const pushToken = await Notifications.getDevicePushTokenAsync();
+              await fcmApi.registrar(data.usuario.id, pushToken.data);
+            }
+          } catch {}
+          navigate('App');
+        } catch {
+          navigate('RegistroConductor', { user: result.user, phone });
+        }
       }
     } catch {
       Alert.alert('Código incorrecto', 'El código ingresado no es válido. Intenta de nuevo.');
