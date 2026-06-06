@@ -8,7 +8,7 @@ import auth from '@react-native-firebase/auth';
 import {
   billingApi, conductorApi, documentosApi, vehiculoApi,
 } from '../api/client';
-import { getUserUuid, clearBackendToken } from '../utils/tokenStorage';
+import { getUserUuid, clearBackendToken, clearPhone, clearUserUuid } from '../utils/tokenStorage';
 import { C, SHADOW } from '../constants/theme';
 
 /* ─── Constants ─────────────────────────────────────────── */
@@ -553,7 +553,7 @@ export default function CuentaScreen({ navigate }) {
           text: 'Cerrar sesión',
           style: 'destructive',
           onPress: async () => {
-            await clearBackendToken();
+            await Promise.all([clearBackendToken(), clearPhone(), clearUserUuid()]);
             await auth().signOut();
             navigate('Login');
           },
