@@ -53,7 +53,7 @@ const TEL_URL      = 'tel:3239420671';
 
 /* ─── Sub-screen: Perfil ─────────────────────────────────── */
 
-function PerfilView({ perfil, onBack, onSave }) {
+function PerfilView({ perfil, conductorId, onBack, onSave }) {
   const [nombre,  setNombre]  = useState(perfil?.nombre   || '');
   const [saving,  setSaving]  = useState(false);
 
@@ -61,7 +61,7 @@ function PerfilView({ perfil, onBack, onSave }) {
     if (!nombre.trim() || saving) return;
     setSaving(true);
     try {
-      await conductorApi.actualizarPerfil(uuidRef.current, { nombre: nombre.trim() });
+      await conductorApi.actualizarPerfil(conductorId, { nombre: nombre.trim() });
       await onSave();
       Alert.alert('Guardado', 'Perfil actualizado correctamente.');
     } catch {
@@ -125,7 +125,7 @@ function PerfilView({ perfil, onBack, onSave }) {
 
 /* ─── Sub-screen: Documentos ─────────────────────────────── */
 
-function DocumentosView({ documentos, onBack, onRefresh }) {
+function DocumentosView({ documentos, conductorId, onBack, onRefresh }) {
   const [uploading, setUploading] = useState(null);
 
   const getDocStatus = (tipo) => {
@@ -181,7 +181,7 @@ function DocumentosView({ documentos, onBack, onRefresh }) {
       const formData = new FormData();
       formData.append('archivo', { uri, type: 'image/jpeg', name: `${tipo}.jpg` });
       formData.append('tipo_documento', tipo);
-      formData.append('conductor_id', uuidRef.current);
+      formData.append('conductor_id', conductorId);
       await documentosApi.subir(formData);
       await onRefresh();
     } catch {
@@ -564,10 +564,10 @@ export default function CuentaScreen({ navigate }) {
 
   /* Sub-screen routing */
   if (subScreen === 'perfil') {
-    return <PerfilView perfil={perfil} onBack={back} onSave={fetchPerfil} />;
+    return <PerfilView perfil={perfil} conductorId={uuidRef.current} onBack={back} onSave={fetchPerfil} />;
   }
   if (subScreen === 'documentos') {
-    return <DocumentosView documentos={documentos} onBack={back} onRefresh={fetchDocumentos} />;
+    return <DocumentosView documentos={documentos} conductorId={uuidRef.current} onBack={back} onRefresh={fetchDocumentos} />;
   }
   if (subScreen === 'vehiculo') {
     return <VehiculoView vehiculo={vehiculo} onBack={back} onSave={fetchVehiculo} />;
