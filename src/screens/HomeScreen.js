@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import * as Location from 'expo-location';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import { conductorApi, locationsApi, billingApi, offersApi, servicesApi } from '../api/client';
+import { conductorApi, locationsApi, billingApi, offersApi, servicesApi, vehiculoApi } from '../api/client';
 import { SERVICES } from '../constants/services';
 import { getUid } from '../constants/config';
 import { C, SHADOW } from '../constants/theme';
@@ -31,7 +31,7 @@ function isHoy(dateStr) {
 
 export default function HomeScreen({ navigate }) {
   const [disponible, setDisponible]       = useState(false);
-  const [tipoServicio]                    = useState('moto_pasajero');
+  const [tipoServicio, setTipoServicio]   = useState(null);
   const [location, setLocation]           = useState(null);
   const [loadingToggle, setLoadingToggle] = useState(false);
   const [saldo, setSaldo]                 = useState(null);
@@ -78,6 +78,7 @@ export default function HomeScreen({ navigate }) {
     fetchSaldo();
     fetchHistorial();
     fetchPerfil();
+    fetchVehiculo();
     const iv = setInterval(fetchSaldo, 30000);
     return () => clearInterval(iv);
   }, []);
@@ -90,6 +91,13 @@ export default function HomeScreen({ navigate }) {
     try {
       const { data } = await conductorApi.perfil(getUid());
       if (data?.nombre) setNombre(data.nombre.split(' ')[0]);
+    } catch {}
+  };
+
+  const fetchVehiculo = async () => {
+    try {
+      const { data } = await vehiculoApi.obtener(getUid());
+      if (data?.tipo_servicio) setTipoServicio(data.tipo_servicio);
     } catch {}
   };
 
@@ -113,7 +121,7 @@ export default function HomeScreen({ navigate }) {
   };
 
   useEffect(() => {
-    if (disponible) {
+    if (disponible && tipoServicio) {
       poll();
       pollRef.current = setInterval(poll, 8000);
     } else {
