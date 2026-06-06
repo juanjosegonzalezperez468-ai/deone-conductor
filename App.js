@@ -4,6 +4,7 @@ import auth                        from '@react-native-firebase/auth';
 import * as Notifications          from 'expo-notifications';
 import * as Device                 from 'expo-device';
 import { fcmApi }                  from './src/api/client';
+import { getUserUuid }             from './src/utils/tokenStorage';
 import SplashScreen                from './src/screens/SplashScreen';
 import LoginScreen                 from './src/screens/LoginScreen';
 import OTPScreen                   from './src/screens/OTPScreen';
@@ -34,9 +35,11 @@ Notifications.setNotificationHandler({
 
 /* ── Registro FCM ────────────────────────────────── */
 
-async function registrarFCMToken(uid) {
+async function registrarFCMToken() {
   try {
     if (!Device.isDevice) return;
+    const backendUuid = await getUserUuid();
+    if (!backendUuid) return;
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('solicitudes', {
         name:              'Solicitudes de viaje',
@@ -53,7 +56,7 @@ async function registrarFCMToken(uid) {
     }
     if (finalStatus !== 'granted') return;
     const { data: token } = await Notifications.getDevicePushTokenAsync();
-    await fcmApi.registrar(uid, token);
+    await fcmApi.registrar(backendUuid, token);
   } catch {}
 }
 
@@ -66,7 +69,7 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = auth().onAuthStateChanged((user) => {
       setIsAdmin(user?.phoneNumber === ADMIN_PHONE);
-      if (user) registrarFCMToken(user.uid);
+      if (user) registrarFCMToken();
     });
     return unsubscribe;
   }, []);
@@ -83,6 +86,7 @@ export default function App() {
   const navigate = (screenName, params) => {
     setScreenParams(params || {});
     setScreen(screenName);
+    if (screenName === 'App') registrarFCMToken();
   };
 
   if (screen === 'Splash')            return <SplashScreen navigate={navigate} />;
