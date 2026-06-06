@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput,
   StyleSheet, StatusBar, ActivityIndicator, Alert, Linking,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import auth from '@react-native-firebase/auth';
 import {
   billingApi, conductorApi, documentosApi, vehiculoApi,
 } from '../api/client';
-import { getUid } from '../constants/config';
+import { getUserUuid, clearBackendToken } from '../utils/tokenStorage';
 import { C, SHADOW } from '../constants/theme';
 
 /* ─── Constants ─────────────────────────────────────────── */
@@ -60,7 +61,7 @@ function PerfilView({ perfil, onBack, onSave }) {
     if (!nombre.trim() || saving) return;
     setSaving(true);
     try {
-      await conductorApi.actualizarPerfil(getUid(), { nombre: nombre.trim() });
+      await conductorApi.actualizarPerfil(uuidRef.current, { nombre: nombre.trim() });
       await onSave();
       Alert.alert('Guardado', 'Perfil actualizado correctamente.');
     } catch {
@@ -180,7 +181,7 @@ function DocumentosView({ documentos, onBack, onRefresh }) {
       const formData = new FormData();
       formData.append('archivo', { uri, type: 'image/jpeg', name: `${tipo}.jpg` });
       formData.append('tipo_documento', tipo);
-      formData.append('conductor_id', getUid());
+      formData.append('conductor_id', uuidRef.current);
       await documentosApi.subir(formData);
       await onRefresh();
     } catch {
@@ -292,7 +293,7 @@ function VehiculoView({ vehiculo, onBack, onSave }) {
     setSaving(true);
     try {
       await vehiculoApi.registrar({
-        conductor_id:  getUid(),
+        conductor_id:  uuidRef.current,
         marca:         marca.trim(),
         modelo:        modelo.trim(),
         placa:         placa.trim().toUpperCase(),
@@ -482,7 +483,8 @@ const MENU_ITEMS = [
   { icon: '📋', label: 'Comisiones',    key: null },
 ];
 
-export default function CuentaScreen() {
+export default function CuentaScreen({ navigate }) {
+  const uuidRef              = useRef('');
   const [subScreen,      setSubScreen]      = useState(null);
   const [loading,        setLoading]        = useState(true);
   const [penalizaciones, setPenalizaciones] = useState(null);
@@ -492,8 +494,10 @@ export default function CuentaScreen() {
 
   useEffect(() => { fetchAll(); }, []);
 
-  const fetchAll = () => {
+  const fetchAll = async () => {
     setLoading(true);
+    const uuid = await getUserUuid();
+    if (uuid) uuidRef.current = uuid;
     return Promise.all([
       fetchPenalizaciones(),
       fetchPerfil(),
@@ -503,22 +507,22 @@ export default function CuentaScreen() {
   };
 
   const fetchPenalizaciones = () =>
-    billingApi.penalizaciones(getUid())
+    billingApi.penalizaciones(uuidRef.current)
       .then(({ data }) => setPenalizaciones(data))
       .catch(() => setPenalizaciones({ advertencias: [], suspendido: false }));
 
   const fetchPerfil = () =>
-    conductorApi.perfil(getUid())
+    conductorApi.perfil(uuidRef.current)
       .then(({ data }) => { if (data) setPerfil(data); })
       .catch(() => {});
 
   const fetchDocumentos = () =>
-    documentosApi.obtener(getUid())
+    documentosApi.obtener(uuidRef.current)
       .then(({ data }) => setDocumentos(Array.isArray(data) ? data : []))
       .catch(() => setDocumentos([]));
 
   const fetchVehiculo = () =>
-    vehiculoApi.obtener(getUid())
+    vehiculoApi.obtener(uuidRef.current)
       .then(({ data }) => setVehiculo(data || null))
       .catch(() => setVehiculo(null));
 
@@ -538,6 +542,25 @@ export default function CuentaScreen() {
   };
 
   const back = () => setSubScreen(null);
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Cerrar sesión',
+      '¿Seguro que quieres cerrar sesión?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cerrar sesión',
+          style: 'destructive',
+          onPress: async () => {
+            await clearBackendToken();
+            await auth().signOut();
+            navigate('Login');
+          },
+        },
+      ],
+    );
+  };
 
   /* Sub-screen routing */
   if (subScreen === 'perfil') {
@@ -679,9 +702,14 @@ export default function CuentaScreen() {
         <View style={s.idCard}>
           <Text style={s.idLbl}>ID CONDUCTOR</Text>
           <Text style={s.idVal} numberOfLines={1} ellipsizeMode="middle">
-            {getUid()}
+            {perfil.id || uuidRef.current}
           </Text>
         </View>
+
+        {/* Cerrar sesión */}
+        <TouchableOpacity style={s.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
+          <Text style={s.logoutTxt}>Cerrar sesión</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -864,6 +892,18 @@ const s = StyleSheet.create({
   idCard: { backgroundColor: C.white, borderRadius: 18, padding: 16, ...SHADOW },
   idLbl:  { color: C.gray, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginBottom: 6 },
   idVal:  { color: C.black, fontSize: 13, fontWeight: '500' },
+
+  /* ── Logout ── */
+  logoutBtn: {
+    marginTop:      20,
+    marginBottom:   8,
+    paddingVertical:16,
+    borderRadius:   16,
+    borderWidth:    1.5,
+    borderColor:    C.redBorder,
+    alignItems:     'center',
+  },
+  logoutTxt: { color: C.red, fontSize: 15, fontWeight: '700' },
 
   /* ── Shared sub-screen elements ── */
   avatarBig: {

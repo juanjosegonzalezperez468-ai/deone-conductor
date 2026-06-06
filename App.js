@@ -117,7 +117,7 @@ export default function App() {
       {activeTab === 'Home'      && <HomeScreen navigate={navigate} />}
       {activeTab === 'Ganancias' && <GananciasScreen navigate={navigate} />}
       {activeTab === 'Actividad' && <ActividadScreen />}
-      {activeTab === 'Cuenta'    && <CuentaScreen />}
+      {activeTab === 'Cuenta'    && <CuentaScreen navigate={navigate} />}
       {activeTab === 'Admin'     && <AdminScreen navigate={navigate} />}
       <TabBar active={activeTab} onPress={setActiveTab} isAdmin={isAdmin} />
     </View>
