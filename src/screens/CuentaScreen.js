@@ -277,7 +277,7 @@ function DocumentosView({ documentos, conductorId, onBack, onRefresh }) {
 
 /* ─── Sub-screen: Vehículo ───────────────────────────────── */
 
-function VehiculoView({ vehiculo, onBack, onSave }) {
+function VehiculoView({ vehiculo, conductorId, onBack, onSave }) {
   const [marca,        setMarca]        = useState(vehiculo?.marca         || '');
   const [modelo,       setModelo]       = useState(vehiculo?.modelo        || '');
   const [placa,        setPlaca]        = useState(vehiculo?.placa         || '');
@@ -293,7 +293,7 @@ function VehiculoView({ vehiculo, onBack, onSave }) {
     setSaving(true);
     try {
       await vehiculoApi.registrar({
-        conductor_id:  uuidRef.current,
+        conductor_id:  conductorId,
         marca:         marca.trim(),
         modelo:        modelo.trim(),
         placa:         placa.trim().toUpperCase(),
@@ -570,7 +570,7 @@ export default function CuentaScreen({ navigate }) {
     return <DocumentosView documentos={documentos} conductorId={uuidRef.current} onBack={back} onRefresh={fetchDocumentos} />;
   }
   if (subScreen === 'vehiculo') {
-    return <VehiculoView vehiculo={vehiculo} onBack={back} onSave={fetchVehiculo} />;
+    return <VehiculoView vehiculo={vehiculo} conductorId={uuidRef.current} onBack={back} onSave={fetchVehiculo} />;
   }
   if (subScreen === 'ayuda') {
     return <AyudaView onBack={back} />;
