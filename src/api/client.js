@@ -76,8 +76,8 @@ export const billingApi = {
   saldo:             (conductorId) => api.get(`/billing/saldo/${conductorId}`),
   descontarComision: (data)        => api.post('/billing/descontar-comision', data),
   penalizaciones:    (conductorId) => api.get(`/billing/penalizaciones/${conductorId}`),
-  solicitarRecarga:  (conductorId, monto) =>
-    api.post('/billing/solicitar-recarga', { conductor_id: conductorId, monto }),
+  solicitarRecarga:  (monto) =>
+    api.post('/billing/solicitar-recarga', { monto }),
 };
 
 export const authApi = {

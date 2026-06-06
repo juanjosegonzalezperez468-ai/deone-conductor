@@ -94,8 +94,7 @@ export default function GananciasScreen({ navigate }) {
     if (!recargaMonto) return;
     setEnviandoRecarga(true);
     try {
-      const uuid = await getUserUuid();
-      await billingApi.solicitarRecarga(uuid, recargaMonto);
+      await billingApi.solicitarRecarga(recargaMonto);
       cerrarModalRecarga();
       Alert.alert(
         'Solicitud enviada',
