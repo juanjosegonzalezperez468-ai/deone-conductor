@@ -1,11 +1,53 @@
 import axios from 'axios';
+import auth from '@react-native-firebase/auth';
 import { API_URL } from '../constants/config';
+import { getBackendToken, storeBackendToken, clearBackendToken, getPhone } from '../utils/tokenStorage';
 
 const api = axios.create({
   baseURL: API_URL,
   timeout: 10000,
   headers: { 'Content-Type': 'application/json' },
 });
+
+api.interceptors.request.use(async (config) => {
+  const token = await getBackendToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+let _refreshing = false;
+
+api.interceptors.response.use(
+  (res) => res,
+  async (error) => {
+    const original = error.config;
+    if (error.response?.status === 401 && !original._retry && !_refreshing) {
+      original._retry = true;
+      _refreshing = true;
+      try {
+        const user = auth().currentUser;
+        const phone = await getPhone();
+        if (user && phone) {
+          const idToken = await user.getIdToken(true);
+          const { data } = await axios.post(
+            `${API_URL}/auth/verificar-otp`,
+            { telefono: phone, token: idToken, tipo: 'conductor', nombre: 'conductor' },
+            { headers: { 'Content-Type': 'application/json' } },
+          );
+          await storeBackendToken(data.token);
+          original.headers.Authorization = `Bearer ${data.token}`;
+          return api(original);
+        }
+      } catch {
+        await clearBackendToken();
+      } finally {
+        _refreshing = false;
+      }
+    }
+    _refreshing = false;
+    return Promise.reject(error);
+  },
+);
 
 export const conductorApi = {
   pendientes:       (tipo, params)        => api.get(`/services/pendientes/${tipo}`, { params }),
@@ -34,6 +76,8 @@ export const billingApi = {
   saldo:             (conductorId) => api.get(`/billing/saldo/${conductorId}`),
   descontarComision: (data)        => api.post('/billing/descontar-comision', data),
   penalizaciones:    (conductorId) => api.get(`/billing/penalizaciones/${conductorId}`),
+  solicitarRecarga:  (conductorId, monto) =>
+    api.post('/billing/solicitar-recarga', { conductor_id: conductorId, monto }),
 };
 
 export const authApi = {

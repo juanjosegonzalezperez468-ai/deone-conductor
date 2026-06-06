@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView,
-  StyleSheet, StatusBar, ActivityIndicator, Modal,
+  StyleSheet, StatusBar, ActivityIndicator, Modal, Alert,
 } from 'react-native';
 import { conductorApi, billingApi } from '../api/client';
 import { SERVICES } from '../constants/services';
-import { getUid } from '../constants/config';
+import { getUserUuid } from '../utils/tokenStorage';
 import { C, SHADOW } from '../constants/theme';
 
 const PERIODOS = ['Hoy', 'Semana', 'Mes'];
@@ -51,20 +51,24 @@ export default function GananciasScreen({ navigate }) {
   const [historial, setHistorial] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [saldo, setSaldo]         = useState(null);
-  const [showRecarga, setShowRecarga] = useState(false);
+  const [showRecarga, setShowRecarga]       = useState(false);
+  const [recargaMonto, setRecargaMonto]     = useState(null);
+  const [enviandoRecarga, setEnviandoRecarga] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      conductorApi.historial(getUid())
-        .then(({ data }) => setHistorial(Array.isArray(data) ? data : []))
-        .catch(() => {}),
-      billingApi.saldo(getUid())
-        .then(({ data }) => {
-          const val = typeof data === 'object' ? data.saldo : data;
-          if (typeof val === 'number') setSaldo(val);
-        })
-        .catch(() => {}),
-    ]).finally(() => setLoading(false));
+    getUserUuid().then((uuid) => {
+      Promise.all([
+        conductorApi.historial(uuid)
+          .then(({ data }) => setHistorial(Array.isArray(data) ? data : []))
+          .catch(() => {}),
+        billingApi.saldo(uuid)
+          .then(({ data }) => {
+            const val = typeof data === 'object' ? data.saldo : data;
+            if (typeof val === 'number') setSaldo(val);
+          })
+          .catch(() => {}),
+      ]).finally(() => setLoading(false));
+    });
   }, []);
 
   const filtrado = historial.filter(v =>
@@ -81,24 +85,81 @@ export default function GananciasScreen({ navigate }) {
   const getBarHeight = (total) => Math.max((total / maxChart) * 90, 4);
   const getBarColor = (isToday) => isToday ? C.yellow : C.border;
 
+  const cerrarModalRecarga = () => {
+    setShowRecarga(false);
+    setRecargaMonto(null);
+  };
+
+  const confirmarRecarga = async () => {
+    if (!recargaMonto) return;
+    setEnviandoRecarga(true);
+    try {
+      const uuid = await getUserUuid();
+      await billingApi.solicitarRecarga(uuid, recargaMonto);
+      cerrarModalRecarga();
+      Alert.alert(
+        'Solicitud enviada',
+        'Tu solicitud de recarga fue recibida. El equipo Deone la verificará y activará tu saldo en minutos.',
+        [{ text: 'OK' }],
+      );
+    } catch {
+      Alert.alert('Error', 'No se pudo enviar la solicitud. Intenta de nuevo.');
+    } finally {
+      setEnviandoRecarga(false);
+    }
+  };
+
   return (
     <View style={s.root}>
       <StatusBar backgroundColor={C.bg} barStyle="dark-content" />
 
       {/* Modal recarga */}
       <Modal visible={showRecarga} transparent animationType="fade">
-        <TouchableOpacity style={s.modalBg} onPress={() => setShowRecarga(false)} activeOpacity={1}>
+        <TouchableOpacity style={s.modalBg} onPress={cerrarModalRecarga} activeOpacity={1}>
           <View style={s.modalCard} onStartShouldSetResponder={() => true}>
-            <Text style={s.modalTitle}>Cómo recargar tu saldo</Text>
+            <Text style={s.modalTitle}>Recargar saldo</Text>
+
             <View style={s.nequiCard}>
               <Text style={s.nequiLabel}>NEQUI</Text>
               <Text style={s.nequiNum}>323 942 0671</Text>
             </View>
-            <Text style={s.modalBody}>
-              {'Montos:\n$10.000  ·  $25.000  ·  $50.000\n\nConcepto: DEONE + tu número de teléfono\n\nTu saldo se activa en minutos.'}
+
+            <Text style={s.modalInstruccion}>
+              Concepto: <Text style={{ fontWeight: '700' }}>DEONE + tu número</Text>
             </Text>
-            <TouchableOpacity style={s.modalBtn} onPress={() => setShowRecarga(false)} activeOpacity={0.85}>
-              <Text style={s.modalBtnTxt}>ENTENDIDO</Text>
+
+            <Text style={s.modalStepLbl}>SELECCIONA EL MONTO QUE ENVIASTE</Text>
+            <View style={s.montosRow}>
+              {[10000, 25000, 50000].map((m) => (
+                <TouchableOpacity
+                  key={m}
+                  style={recargaMonto === m ? s.montoSelActive : s.montoSel}
+                  onPress={() => setRecargaMonto(m)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={recargaMonto === m ? s.montoSelTxtActive : s.montoSelTxt}>
+                    ${m.toLocaleString('es-CO')}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <TouchableOpacity
+              style={recargaMonto ? s.modalBtn : s.modalBtnDis}
+              onPress={confirmarRecarga}
+              activeOpacity={recargaMonto ? 0.85 : 1}
+              disabled={!recargaMonto || enviandoRecarga}
+            >
+              {enviandoRecarga
+                ? <ActivityIndicator color={C.yellow} />
+                : <Text style={recargaMonto ? s.modalBtnTxt : s.modalBtnTxtDis}>
+                    {recargaMonto ? 'YA PAGUÉ · SOLICITAR ACTIVACIÓN' : 'SELECCIONA UN MONTO'}
+                  </Text>
+              }
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={cerrarModalRecarga} style={s.cancelarBtn}>
+              <Text style={s.cancelarTxt}>Cancelar</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -386,13 +447,38 @@ const s = StyleSheet.create({
     borderRadius:    16,
     padding:         16,
     alignItems:      'center',
-    marginBottom:    16,
+    marginBottom:    12,
   },
-  nequiLabel:  { color: C.black, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginBottom: 4 },
-  nequiNum:    { color: C.black, fontSize: 28, fontWeight: '800' },
-  modalBody:   { color: C.gray, fontSize: 14, lineHeight: 22, marginBottom: 20 },
-  modalBtn:    { backgroundColor: C.black, borderRadius: 16, paddingVertical: 16, alignItems: 'center' },
-  modalBtnTxt: { color: C.yellow, fontSize: 15, fontWeight: '700', letterSpacing: 0.5 },
+  nequiLabel:       { color: C.black, fontSize: 11, fontWeight: '700', letterSpacing: 2, marginBottom: 4 },
+  nequiNum:         { color: C.black, fontSize: 28, fontWeight: '800' },
+  modalInstruccion: { color: C.gray, fontSize: 13, textAlign: 'center', marginBottom: 18 },
+  modalStepLbl:     { color: C.gray, fontSize: 10, fontWeight: '700', letterSpacing: 1.5, marginBottom: 10 },
+  montosRow:        { flexDirection: 'row', gap: 8, marginBottom: 20 },
+  montoSel: {
+    flex:            1,
+    borderWidth:     1.5,
+    borderColor:     C.border,
+    borderRadius:    14,
+    paddingVertical: 14,
+    alignItems:      'center',
+  },
+  montoSelActive: {
+    flex:            1,
+    borderWidth:     2,
+    borderColor:     C.black,
+    borderRadius:    14,
+    paddingVertical: 14,
+    alignItems:      'center',
+    backgroundColor: '#FFF8DC',
+  },
+  montoSelTxt:       { color: C.gray,  fontSize: 13, fontWeight: '600' },
+  montoSelTxtActive: { color: C.black, fontSize: 13, fontWeight: '800' },
+  modalBtn:    { backgroundColor: C.black, borderRadius: 16, paddingVertical: 16, alignItems: 'center', marginBottom: 10 },
+  modalBtnDis: { backgroundColor: C.border, borderRadius: 16, paddingVertical: 16, alignItems: 'center', marginBottom: 10 },
+  modalBtnTxt:    { color: C.yellow, fontSize: 14, fontWeight: '700', letterSpacing: 0.5 },
+  modalBtnTxtDis: { color: C.gray,   fontSize: 14, fontWeight: '600' },
+  cancelarBtn: { alignItems: 'center', paddingVertical: 8 },
+  cancelarTxt: { color: C.gray, fontSize: 14 },
 });
 
 const vi = StyleSheet.create({
