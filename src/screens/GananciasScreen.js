@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView,
-  StyleSheet, StatusBar, ActivityIndicator, Modal, Alert,
+  StyleSheet, StatusBar, ActivityIndicator, Modal, Alert, Platform,
 } from 'react-native';
 import { conductorApi, billingApi } from '../api/client';
 import { SERVICES } from '../constants/services';
@@ -166,6 +166,9 @@ export default function GananciasScreen({ navigate }) {
 
       {/* Header */}
       <View style={s.header}>
+        <TouchableOpacity onPress={() => navigate('App')} style={s.backBtn} activeOpacity={0.7}>
+          <Text style={s.backIcon}>‹</Text>
+        </TouchableOpacity>
         <Text style={s.heading}>Ganancias</Text>
       </View>
 
@@ -318,8 +321,10 @@ const s = StyleSheet.create({
   scroll:  { flex: 1 },
   content: { paddingHorizontal: 16, paddingBottom: 40 },
 
-  header:  { paddingHorizontal: 20, paddingTop: 52, paddingBottom: 8, backgroundColor: C.bg },
-  heading: { color: C.black, fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
+  header:  { paddingHorizontal: 16, paddingTop: Platform.OS === 'android' ? 48 : 52, paddingBottom: 8, backgroundColor: C.bg, flexDirection: 'row', alignItems: 'center' },
+  backBtn: { padding: 8, marginRight: 4 },
+  backIcon: { color: C.black, fontSize: 36, fontWeight: '300', lineHeight: 38 },
+  heading: { color: C.black, fontSize: 28, fontWeight: '800', letterSpacing: -0.5, flex: 1 },
 
   /* Saldo */
   saldoCard: {

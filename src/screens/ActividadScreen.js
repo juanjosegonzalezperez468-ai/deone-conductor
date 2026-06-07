@@ -1,22 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, ScrollView,
-  StyleSheet, StatusBar, ActivityIndicator,
+  View, Text, ScrollView, TouchableOpacity,
+  StyleSheet, StatusBar, ActivityIndicator, Platform,
 } from 'react-native';
 import { conductorApi } from '../api/client';
 import { SERVICES } from '../constants/services';
-import { getUid } from '../constants/config';
+import { getUserUuid } from '../utils/tokenStorage';
 import { C, SHADOW } from '../constants/theme';
 
-export default function ActividadScreen() {
+export default function ActividadScreen({ navigate }) {
   const [historial, setHistorial] = useState([]);
   const [loading, setLoading]     = useState(true);
 
   useEffect(() => {
-    conductorApi.historial(getUid())
-      .then(({ data }) => setHistorial(Array.isArray(data) ? data : []))
-      .catch(() => setHistorial([]))
-      .finally(() => setLoading(false));
+    getUserUuid().then((uuid) => {
+      conductorApi.historial(uuid)
+        .then(({ data }) => setHistorial(Array.isArray(data) ? data : []))
+        .catch(() => setHistorial([]))
+        .finally(() => setLoading(false));
+    });
   }, []);
 
   const completados = historial.filter(v => v.estado === 'completado' || v.precio_final > 0);
@@ -26,6 +28,9 @@ export default function ActividadScreen() {
       <StatusBar backgroundColor={C.bg} barStyle="dark-content" />
 
       <View style={s.header}>
+        <TouchableOpacity onPress={() => navigate('App')} style={s.backBtn} activeOpacity={0.7}>
+          <Text style={s.backIcon}>‹</Text>
+        </TouchableOpacity>
         <Text style={s.heading}>Actividad</Text>
         {!loading && (
           <View style={s.countBadge}>
@@ -113,15 +118,16 @@ const s = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingBottom: 40 },
 
   header: {
-    paddingHorizontal: 20,
-    paddingTop:        52,
+    paddingHorizontal: 16,
+    paddingTop:        Platform.OS === 'android' ? 48 : 52,
     paddingBottom:     14,
     backgroundColor:   C.bg,
     flexDirection:     'row',
     alignItems:        'center',
-    justifyContent:    'space-between',
   },
-  heading:    { color: C.black, fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
+  backBtn:  { padding: 8, marginRight: 4 },
+  backIcon: { color: C.black, fontSize: 36, fontWeight: '300', lineHeight: 38 },
+  heading:    { color: C.black, fontSize: 28, fontWeight: '800', letterSpacing: -0.5, flex: 1 },
   countBadge: {
     backgroundColor: C.border,
     borderRadius:    12,

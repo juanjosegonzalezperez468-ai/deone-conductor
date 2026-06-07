@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput,
-  StyleSheet, StatusBar, ActivityIndicator, Alert, Linking,
+  StyleSheet, StatusBar, ActivityIndicator, Alert, Linking, Platform,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import auth from '@react-native-firebase/auth';
@@ -596,6 +596,13 @@ export default function CuentaScreen({ navigate }) {
     <View style={s.root}>
       <StatusBar backgroundColor={C.bg} barStyle="dark-content" />
 
+      <View style={s.topHeader}>
+        <TouchableOpacity onPress={() => navigate('App')} style={s.backBtn} activeOpacity={0.7}>
+          <Text style={s.backIcon}>‹</Text>
+        </TouchableOpacity>
+        <Text style={s.topHeading}>Mi cuenta</Text>
+      </View>
+
       <ScrollView
         style={s.scroll}
         contentContainerStyle={s.content}
@@ -723,7 +730,11 @@ export default function CuentaScreen({ navigate }) {
 const s = StyleSheet.create({
   root:    { flex: 1, backgroundColor: C.bg },
   scroll:  { flex: 1 },
-  content: { paddingHorizontal: 16, paddingTop: 52, paddingBottom: 48 },
+  topHeader:  { paddingHorizontal: 16, paddingTop: Platform.OS === 'android' ? 48 : 52, paddingBottom: 8, backgroundColor: C.bg, flexDirection: 'row', alignItems: 'center' },
+  backBtn:    { padding: 8, marginRight: 4 },
+  backIcon:   { color: C.black, fontSize: 36, fontWeight: '300', lineHeight: 38 },
+  topHeading: { color: C.black, fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
+  content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 48 },
 
   /* ── Sub-screen header ── */
   subHeader: {
