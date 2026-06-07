@@ -23,10 +23,11 @@ const DOCUMENTOS_DEF = [
 ];
 
 const TIPOS_SERVICIO = [
-  { id: 'moto',      label: 'Moto',      icon: '🏍️' },
-  { id: 'carro',     label: 'Carro',     icon: '🚗' },
-  { id: 'grua',      label: 'Grúa',      icon: '🔧' },
-  { id: 'camioneta', label: 'Camioneta', icon: '🚐' },
+  { id: 'moto_pasajero',  label: 'Moto',      icon: '🏍️' },
+  { id: 'carro_pasajero', label: 'Carro',     icon: '🚗' },
+  { id: 'domicilio',      label: 'Domicilio', icon: '📦' },
+  { id: 'acarreo',        label: 'Acarreo',   icon: '🚚' },
+  { id: 'grua',           label: 'Grúa',      icon: '🚛' },
 ];
 
 const FAQ = [
@@ -184,8 +185,9 @@ function DocumentosView({ documentos, conductorId, onBack, onRefresh }) {
       formData.append('conductor_id', conductorId);
       await documentosApi.subir(formData);
       await onRefresh();
-    } catch {
-      Alert.alert('Error al subir', 'No se pudo subir el documento. Intenta de nuevo.');
+    } catch (err) {
+      const detalle = err.response?.data?.detail || err.message || 'Error desconocido';
+      Alert.alert('Error al subir', detalle);
     } finally {
       setUploading(null);
     }
@@ -303,8 +305,9 @@ function VehiculoView({ vehiculo, conductorId, onBack, onSave }) {
       });
       await onSave();
       Alert.alert('Guardado', 'Información del vehículo guardada.');
-    } catch {
-      Alert.alert('Error', 'No se pudo guardar la información. Intenta de nuevo.');
+    } catch (err) {
+      const msg = err?.response?.data?.detail || err?.message || 'Error desconocido';
+      Alert.alert('Error al guardar', msg);
     } finally {
       setSaving(false);
     }
