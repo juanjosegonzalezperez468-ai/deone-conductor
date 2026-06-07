@@ -166,8 +166,9 @@ export default function HomeScreen({ navigate, pendingServiceId, onPendingServic
         ? { lat: loc.latitude, lng: loc.longitude, radio_km: 3 }
         : { radio_km: 3 };
       const { data } = await conductorApi.pendientes(tipoServicio, params);
-      if (Array.isArray(data) && data.length > 0) {
-        const nueva = data.find(s => s.estado === 'pendiente' && !seenIds.current.has(s.id));
+      const lista = data?.solicitudes || [];
+      if (lista.length > 0) {
+        const nueva = lista.find(s => s.estado === 'pendiente' && !seenIds.current.has(s.id));
         if (nueva) {
           seenIds.current.add(nueva.id);
           clearInterval(pollRef.current);
