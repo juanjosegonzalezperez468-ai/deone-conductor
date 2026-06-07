@@ -46,7 +46,7 @@ function getLast7DaysChart(historial) {
   });
 }
 
-export default function GananciasScreen({ navigate }) {
+export default function GananciasScreen({ navigate, onMenuPress }) {
   const [periodo, setPeriodo]     = useState('Hoy');
   const [historial, setHistorial] = useState([]);
   const [loading, setLoading]     = useState(true);
@@ -166,8 +166,10 @@ export default function GananciasScreen({ navigate }) {
 
       {/* Header */}
       <View style={s.header}>
-        <TouchableOpacity onPress={() => navigate('App')} style={s.backBtn} activeOpacity={0.7}>
-          <Text style={s.backIcon}>‹</Text>
+        <TouchableOpacity onPress={onMenuPress} style={s.menuBtn} activeOpacity={0.7}>
+          <View style={s.bar} />
+          <View style={s.bar} />
+          <View style={s.bar} />
         </TouchableOpacity>
         <Text style={s.heading}>Ganancias</Text>
       </View>
@@ -321,9 +323,9 @@ const s = StyleSheet.create({
   scroll:  { flex: 1 },
   content: { paddingHorizontal: 16, paddingBottom: 40 },
 
-  header:  { paddingHorizontal: 16, paddingTop: Platform.OS === 'android' ? 48 : 52, paddingBottom: 8, backgroundColor: C.bg, flexDirection: 'row', alignItems: 'center' },
-  backBtn: { padding: 8, marginRight: 4 },
-  backIcon: { color: C.black, fontSize: 36, fontWeight: '300', lineHeight: 38 },
+  header:  { paddingHorizontal: 12, paddingTop: Platform.OS === 'android' ? 48 : 52, paddingBottom: 8, backgroundColor: C.bg, flexDirection: 'row', alignItems: 'center' },
+  menuBtn: { padding: 10, justifyContent: 'center', marginRight: 4 },
+  bar:     { width: 22, height: 2.5, backgroundColor: C.black, borderRadius: 2, marginVertical: 2.5 },
   heading: { color: C.black, fontSize: 28, fontWeight: '800', letterSpacing: -0.5, flex: 1 },
 
   /* Saldo */

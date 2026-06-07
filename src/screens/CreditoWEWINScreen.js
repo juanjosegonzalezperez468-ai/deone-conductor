@@ -3,10 +3,9 @@ import {
   View, Text, TouchableOpacity, ScrollView,
   StyleSheet, StatusBar, ActivityIndicator, Linking,
 } from 'react-native';
-import auth from '@react-native-firebase/auth';
 import axios from 'axios';
 import { conductorApi } from '../api/client';
-import { getUid } from '../constants/config';
+import { getUserUuid } from '../utils/tokenStorage';
 import { C, SHADOW } from '../constants/theme';
 
 const WEWIN_SCORE_URL  = 'https://lhdngsrdznfoefjpzzhl.supabase.co/functions/v1/recibir-score-deone';
@@ -52,7 +51,8 @@ export default function CreditoWEWINScreen({ onBack }) {
     setLoading(true);
     setError(null);
     try {
-      const { data: perfil } = await conductorApi.perfil(getUid());
+      const uuid = await getUserUuid();
+      const { data: perfil } = await conductorApi.perfil(uuid);
 
       const antiguedad_dias        = Number(perfil.antiguedad_dias        ?? 0);
       const viajes_completados     = Number(perfil.viajes_completados     ?? 0);
@@ -64,13 +64,12 @@ export default function CreditoWEWINScreen({ onBack }) {
       setScore(resultado);
       setFactores({ antiguedad_dias, viajes_completados, rating, cancelaciones, documentos_verificados });
 
-      const user = auth().currentUser;
       axios.post(
         WEWIN_SCORE_URL,
         {
-          conductor_id:          user?.uid,
+          conductor_id:          uuid,
           nombre:                perfil.nombre || '',
-          telefono:              user?.phoneNumber || perfil.telefono || '',
+          telefono:              perfil.telefono || '',
           antiguedad_dias,
           viajes_completados,
           rating_promedio:       rating,

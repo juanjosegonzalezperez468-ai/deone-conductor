@@ -486,7 +486,7 @@ const MENU_ITEMS = [
   { icon: '📋', label: 'Comisiones',    key: null },
 ];
 
-export default function CuentaScreen({ navigate }) {
+export default function CuentaScreen({ navigate, onMenuPress }) {
   const uuidRef              = useRef('');
   const [subScreen,      setSubScreen]      = useState(null);
   const [loading,        setLoading]        = useState(true);
@@ -597,8 +597,10 @@ export default function CuentaScreen({ navigate }) {
       <StatusBar backgroundColor={C.bg} barStyle="dark-content" />
 
       <View style={s.topHeader}>
-        <TouchableOpacity onPress={() => navigate('App')} style={s.backBtn} activeOpacity={0.7}>
-          <Text style={s.backIcon}>‹</Text>
+        <TouchableOpacity onPress={onMenuPress} style={s.menuBtn} activeOpacity={0.7}>
+          <View style={s.bar} />
+          <View style={s.bar} />
+          <View style={s.bar} />
         </TouchableOpacity>
         <Text style={s.topHeading}>Mi cuenta</Text>
       </View>
@@ -730,9 +732,9 @@ export default function CuentaScreen({ navigate }) {
 const s = StyleSheet.create({
   root:    { flex: 1, backgroundColor: C.bg },
   scroll:  { flex: 1 },
-  topHeader:  { paddingHorizontal: 16, paddingTop: Platform.OS === 'android' ? 48 : 52, paddingBottom: 8, backgroundColor: C.bg, flexDirection: 'row', alignItems: 'center' },
-  backBtn:    { padding: 8, marginRight: 4 },
-  backIcon:   { color: C.black, fontSize: 36, fontWeight: '300', lineHeight: 38 },
+  topHeader:  { paddingHorizontal: 12, paddingTop: Platform.OS === 'android' ? 48 : 52, paddingBottom: 8, backgroundColor: C.bg, flexDirection: 'row', alignItems: 'center' },
+  menuBtn:    { padding: 10, justifyContent: 'center', marginRight: 4 },
+  bar:        { width: 22, height: 2.5, backgroundColor: C.black, borderRadius: 2, marginVertical: 2.5 },
   topHeading: { color: C.black, fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
   content: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 48 },
 

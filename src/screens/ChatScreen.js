@@ -4,11 +4,11 @@ import {
   StyleSheet, StatusBar, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
 import { chatApi } from '../api/client';
-import { getUid } from '../constants/config';
+import { getUserUuid } from '../utils/tokenStorage';
 import { C, SHADOW } from '../constants/theme';
 
 export default function ChatScreen({ serviceId, onClose }) {
-  const uid = getUid();
+  const uuidRef = useRef('');
 
   const [mensajes, setMensajes] = useState([]);
   const [texto, setTexto]       = useState('');
@@ -19,14 +19,17 @@ export default function ChatScreen({ serviceId, onClose }) {
 
   const fetchMensajes = async () => {
     try {
-      const { data } = await chatApi.getMensajes(serviceId, uid);
+      const { data } = await chatApi.getMensajes(serviceId, uuidRef.current);
       if (Array.isArray(data)) setMensajes(data);
     } catch {}
   };
 
   useEffect(() => {
-    fetchMensajes();
-    pollRef.current = setInterval(fetchMensajes, 3000);
+    getUserUuid().then((uuid) => {
+      if (uuid) uuidRef.current = uuid;
+      fetchMensajes();
+      pollRef.current = setInterval(fetchMensajes, 3000);
+    });
     return () => clearInterval(pollRef.current);
   }, []);
 
@@ -42,7 +45,7 @@ export default function ChatScreen({ serviceId, onClose }) {
     setTexto('');
     setEnviando(true);
     try {
-      await chatApi.enviarMensaje(serviceId, uid, msg);
+      await chatApi.enviarMensaje(serviceId, uuidRef.current, msg);
       await fetchMensajes();
     } catch {}
     setEnviando(false);
@@ -56,7 +59,7 @@ export default function ChatScreen({ serviceId, onClose }) {
   };
 
   const renderMensaje = ({ item }) => {
-    const mio = item.sender_id === uid;
+    const mio = item.sender_id === uuidRef.current;
     return (
       <View style={mio ? s.rowMio : s.rowCliente}>
         <View style={mio ? s.bubbleMio : s.bubbleCliente}>

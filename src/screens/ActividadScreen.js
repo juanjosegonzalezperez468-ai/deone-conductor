@@ -8,7 +8,7 @@ import { SERVICES } from '../constants/services';
 import { getUserUuid } from '../utils/tokenStorage';
 import { C, SHADOW } from '../constants/theme';
 
-export default function ActividadScreen({ navigate }) {
+export default function ActividadScreen({ navigate, onMenuPress }) {
   const [historial, setHistorial] = useState([]);
   const [loading, setLoading]     = useState(true);
 
@@ -28,8 +28,10 @@ export default function ActividadScreen({ navigate }) {
       <StatusBar backgroundColor={C.bg} barStyle="dark-content" />
 
       <View style={s.header}>
-        <TouchableOpacity onPress={() => navigate('App')} style={s.backBtn} activeOpacity={0.7}>
-          <Text style={s.backIcon}>‹</Text>
+        <TouchableOpacity onPress={onMenuPress} style={s.menuBtn} activeOpacity={0.7}>
+          <View style={s.bar} />
+          <View style={s.bar} />
+          <View style={s.bar} />
         </TouchableOpacity>
         <Text style={s.heading}>Actividad</Text>
         {!loading && (
@@ -118,15 +120,15 @@ const s = StyleSheet.create({
   content: { paddingHorizontal: 16, paddingBottom: 40 },
 
   header: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 12,
     paddingTop:        Platform.OS === 'android' ? 48 : 52,
     paddingBottom:     14,
     backgroundColor:   C.bg,
     flexDirection:     'row',
     alignItems:        'center',
   },
-  backBtn:  { padding: 8, marginRight: 4 },
-  backIcon: { color: C.black, fontSize: 36, fontWeight: '300', lineHeight: 38 },
+  menuBtn: { padding: 10, justifyContent: 'center', marginRight: 4 },
+  bar:     { width: 22, height: 2.5, backgroundColor: C.black, borderRadius: 2, marginVertical: 2.5 },
   heading:    { color: C.black, fontSize: 28, fontWeight: '800', letterSpacing: -0.5, flex: 1 },
   countBadge: {
     backgroundColor: C.border,

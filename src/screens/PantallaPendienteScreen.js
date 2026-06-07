@@ -3,7 +3,7 @@ import {
   View, Text, TouchableOpacity, StyleSheet, StatusBar, Linking, ActivityIndicator,
 } from 'react-native';
 import { conductorApi } from '../api/client';
-import { getUid } from '../constants/config';
+import { getUserUuid } from '../utils/tokenStorage';
 import { C, SHADOW } from '../constants/theme';
 
 const WHATSAPP_URL   = 'https://wa.me/573239420671';
@@ -18,7 +18,7 @@ export default function PantallaPendienteScreen({ navigate }) {
     const poll = async () => {
       try {
         setChecking(true);
-        const { data } = await conductorApi.estado(getUid());
+        const { data } = await conductorApi.estado(await getUserUuid());
         if (data?.estado_cuenta === 'activo') {
           navigate('App');
         } else if (data?.estado_cuenta === 'rechazado') {
