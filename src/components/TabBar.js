@@ -2,10 +2,11 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
 const BASE_TABS = [
-  { key: 'Home',      label: 'Inicio',    icon: '🏠' },
-  { key: 'Ganancias', label: 'Ganancias', icon: '💰' },
-  { key: 'Actividad', label: 'Actividad', icon: '📋' },
-  { key: 'Cuenta',    label: 'Cuenta',    icon: '👤' },
+  { key: 'Home',        label: 'Inicio',   icon: '🏠' },
+  { key: 'Solicitudes', label: 'Carreras', icon: '🏍️' },
+  { key: 'Ganancias',   label: 'Ganancias',icon: '💰' },
+  { key: 'Actividad',   label: 'Actividad',icon: '📋' },
+  { key: 'Cuenta',      label: 'Cuenta',   icon: '👤' },
 ];
 
 const ADMIN_TAB = { key: 'Admin', label: 'Admin', icon: '🛡️' };

@@ -11,6 +11,7 @@ import OTPScreen                   from './src/screens/OTPScreen';
 import RegistroConductorScreen     from './src/screens/RegistroConductorScreen';
 import PantallaPendienteScreen     from './src/screens/PantallaPendienteScreen';
 import HomeScreen                  from './src/screens/HomeScreen';
+import SolicitudesScreen           from './src/screens/SolicitudesScreen';
 import GananciasScreen             from './src/screens/GananciasScreen';
 import ActividadScreen             from './src/screens/ActividadScreen';
 import CuentaScreen                from './src/screens/CuentaScreen';
@@ -61,11 +62,10 @@ async function registrarFCMToken() {
 }
 
 export default function App() {
-  const [screen,            setScreen]           = useState('Splash');
-  const [screenParams,      setScreenParams]      = useState({});
-  const [activeTab,         setActiveTab]         = useState('Home');
-  const [isAdmin,           setIsAdmin]           = useState(false);
-  const [pendingServiceId,  setPendingServiceId]  = useState(null);
+  const [screen,       setScreen]      = useState('Splash');
+  const [screenParams, setScreenParams] = useState({});
+  const [activeTab,    setActiveTab]   = useState('Home');
+  const [isAdmin,      setIsAdmin]     = useState(false);
 
   useEffect(() => {
     const unsubscribe = auth().onAuthStateChanged((user) => {
@@ -75,22 +75,20 @@ export default function App() {
     return unsubscribe;
   }, []);
 
-  // Notificación recibida en primer plano → disparar modal
+  // Toque en notificación (primer plano, background o app cerrada) → ir a Carreras
   useEffect(() => {
-    const sub = Notifications.addNotificationReceivedListener((notification) => {
-      const serviceId = notification.request.content.data?.service_id;
-      if (serviceId) setPendingServiceId(serviceId);
+    // App abierta desde estado cerrado (cold start)
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        setScreen('App');
+        setActiveTab('Solicitudes');
+      }
     });
-    return () => sub.remove();
-  }, []);
 
-  // Toque en notificación (background/cerrada) → ir a Home y mostrar modal
-  useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      const serviceId = response.notification.request.content.data?.service_id;
+    // App en background o primer plano
+    const sub = Notifications.addNotificationResponseReceivedListener(() => {
       setScreen('App');
-      setActiveTab('Home');
-      if (serviceId) setPendingServiceId(serviceId);
+      setActiveTab('Solicitudes');
     });
     return () => sub.remove();
   }, []);
@@ -130,11 +128,12 @@ export default function App() {
 
   return (
     <View style={s.root}>
-      {activeTab === 'Home'      && <HomeScreen navigate={navigate} pendingServiceId={pendingServiceId} onPendingServiceHandled={() => setPendingServiceId(null)} />}
-      {activeTab === 'Ganancias' && <GananciasScreen navigate={navigate} />}
-      {activeTab === 'Actividad' && <ActividadScreen />}
-      {activeTab === 'Cuenta'    && <CuentaScreen navigate={navigate} />}
-      {activeTab === 'Admin'     && <AdminScreen navigate={navigate} />}
+      {activeTab === 'Home'        && <HomeScreen navigate={navigate} />}
+      {activeTab === 'Solicitudes' && <SolicitudesScreen navigate={navigate} />}
+      {activeTab === 'Ganancias'   && <GananciasScreen navigate={navigate} />}
+      {activeTab === 'Actividad'   && <ActividadScreen />}
+      {activeTab === 'Cuenta'      && <CuentaScreen navigate={navigate} />}
+      {activeTab === 'Admin'       && <AdminScreen navigate={navigate} />}
       <TabBar active={activeTab} onPress={setActiveTab} isAdmin={isAdmin} />
     </View>
   );
