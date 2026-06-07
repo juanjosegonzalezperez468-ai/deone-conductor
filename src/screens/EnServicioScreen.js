@@ -6,15 +6,12 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import ChatScreen from './ChatScreen';
 import { conductorApi, billingApi, servicesApi } from '../api/client';
-import { getUid } from '../constants/config';
+import { getUserUuid } from '../utils/tokenStorage';
 import { C, SHADOW } from '../constants/theme';
 
-// Phases: 0 = EN_CAMINO, 1 = EN_VIAJE, 2 = COMPLETADO
-const PHASES = [
-  { key: 'en_camino', api: 'en_viaje' },
-  { key: 'en_viaje',  api: 'completado' },
-  { key: 'completado', api: null },
-];
+// Phase 0 → en_camino al entrar (auto), botón "llegué" → en_servicio
+// Phase 1 → botón "finalizar" → completado
+// Phase 2 → pantalla de resumen
 
 export default function EnServicioScreen({ params, goHome }) {
   const { solicitud = {}, precioAceptado = 0 } = params;
@@ -53,13 +50,18 @@ export default function EnServicioScreen({ params, goHome }) {
     );
   };
 
+  // Marcar en_camino inmediatamente al entrar a esta pantalla
+  useEffect(() => {
+    if (!serviceId) return;
+    conductorApi.estadoViaje(serviceId, 'en_camino').catch(() => {});
+  }, [serviceId]);
+
   useEffect(() => {
     if (!serviceId) return;
     servicesApi.obtener(serviceId)
       .then(({ data }) => {
-        if (data?.cliente_nombre)   setClienteNombre(data.cliente_nombre);
-        if (data?.cliente_rating)   setClienteRating(String(data.cliente_rating));
-        if (data?.cliente_telefono) setClienteTelefono(data.cliente_telefono);
+        if (data?.cliente?.nombre)   setClienteNombre(data.cliente.nombre);
+        if (data?.cliente?.telefono) setClienteTelefono(data.cliente.telefono);
       })
       .catch(() => {});
   }, [serviceId]);
@@ -86,14 +88,14 @@ export default function EnServicioScreen({ params, goHome }) {
     if (loading) return;
     setLoading(true);
 
-    const nextPhase = PHASES[phase];
-    await conductorApi.estadoViaje(serviceId, nextPhase.api).catch(() => {});
+    const siguienteEstado = phase === 0 ? 'en_servicio' : 'completado';
+    await conductorApi.estadoViaje(serviceId, siguienteEstado).catch(() => {});
 
     if (phase === 1) {
+      const comisionMonto = Math.round(precioAceptado * 0.095);
       await billingApi.descontarComision({
-        conductor_id: getUid(),
-        service_id:   serviceId,
-        monto:        precioAceptado,
+        conductor_id: await getUserUuid(),
+        monto:        comisionMonto,
       }).catch(() => {});
     }
 
@@ -320,7 +322,7 @@ export default function EnServicioScreen({ params, goHome }) {
       </View>
 
       <Text style={s.completadoTitle}>¡Viaje completado!</Text>
-      <Text style={s.completadoSub}>Excelente servicio, Juan</Text>
+      <Text style={s.completadoSub}>Excelente servicio</Text>
 
       <View style={s.totalesCard}>
         <View style={s.totalesRow}>
