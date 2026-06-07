@@ -29,7 +29,7 @@ function isHoy(dateStr) {
   return new Date(dateStr).toDateString() === new Date().toDateString();
 }
 
-export default function HomeScreen({ navigate }) {
+export default function HomeScreen({ navigate, pendingServiceId, onPendingServiceHandled }) {
   const [disponible, setDisponible]       = useState(false);
   const [tipoServicio, setTipoServicio]   = useState(null);
   const [location, setLocation]           = useState(null);
@@ -133,6 +133,20 @@ export default function HomeScreen({ navigate }) {
     }
     return () => clearInterval(pollRef.current);
   }, [disponible, tipoServicio]);
+
+  useEffect(() => {
+    if (!pendingServiceId) return;
+    servicesApi.obtener(pendingServiceId)
+      .then(({ data }) => {
+        if (data && !seenIds.current.has(data.id)) {
+          seenIds.current.add(data.id);
+          clearInterval(pollRef.current);
+          showModal(data);
+        }
+      })
+      .catch(() => {})
+      .finally(() => onPendingServiceHandled?.());
+  }, [pendingServiceId]);
 
   useEffect(() => {
     if (!location) return;

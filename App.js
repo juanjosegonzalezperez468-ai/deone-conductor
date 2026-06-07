@@ -61,10 +61,11 @@ async function registrarFCMToken() {
 }
 
 export default function App() {
-  const [screen,       setScreen]       = useState('Splash');
-  const [screenParams, setScreenParams] = useState({});
-  const [activeTab,    setActiveTab]    = useState('Home');
-  const [isAdmin,      setIsAdmin]      = useState(false);
+  const [screen,            setScreen]           = useState('Splash');
+  const [screenParams,      setScreenParams]      = useState({});
+  const [activeTab,         setActiveTab]         = useState('Home');
+  const [isAdmin,           setIsAdmin]           = useState(false);
+  const [pendingServiceId,  setPendingServiceId]  = useState(null);
 
   useEffect(() => {
     const unsubscribe = auth().onAuthStateChanged((user) => {
@@ -74,11 +75,22 @@ export default function App() {
     return unsubscribe;
   }, []);
 
-  // Toque en notificación mientras la app está en background → Home
+  // Notificación recibida en primer plano → disparar modal
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener(() => {
+    const sub = Notifications.addNotificationReceivedListener((notification) => {
+      const serviceId = notification.request.content.data?.service_id;
+      if (serviceId) setPendingServiceId(serviceId);
+    });
+    return () => sub.remove();
+  }, []);
+
+  // Toque en notificación (background/cerrada) → ir a Home y mostrar modal
+  useEffect(() => {
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const serviceId = response.notification.request.content.data?.service_id;
       setScreen('App');
       setActiveTab('Home');
+      if (serviceId) setPendingServiceId(serviceId);
     });
     return () => sub.remove();
   }, []);
@@ -118,7 +130,7 @@ export default function App() {
 
   return (
     <View style={s.root}>
-      {activeTab === 'Home'      && <HomeScreen navigate={navigate} />}
+      {activeTab === 'Home'      && <HomeScreen navigate={navigate} pendingServiceId={pendingServiceId} onPendingServiceHandled={() => setPendingServiceId(null)} />}
       {activeTab === 'Ganancias' && <GananciasScreen navigate={navigate} />}
       {activeTab === 'Actividad' && <ActividadScreen />}
       {activeTab === 'Cuenta'    && <CuentaScreen navigate={navigate} />}
