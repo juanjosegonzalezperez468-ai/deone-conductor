@@ -9,9 +9,20 @@ import { conductorApi, billingApi, servicesApi } from '../api/client';
 import { getUserUuid } from '../utils/tokenStorage';
 import { C, SHADOW } from '../constants/theme';
 
-// Phase 0 → en_camino al entrar (auto), botón "llegué" → en_servicio
-// Phase 1 → botón "finalizar" → completado
-// Phase 2 → pantalla de resumen
+function decodePolyline(encoded) {
+  const points = [];
+  let index = 0, lat = 0, lng = 0;
+  while (index < encoded.length) {
+    let shift = 0, result = 0, b;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += result & 1 ? ~(result >> 1) : (result >> 1);
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += result & 1 ? ~(result >> 1) : (result >> 1);
+    points.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
+  }
+  return points;
+}
 
 export default function EnServicioScreen({ params, goHome }) {
   const { solicitud = {}, precioAceptado = 0 } = params;
@@ -35,9 +46,24 @@ export default function EnServicioScreen({ params, goHome }) {
   const [loading, setLoading]     = useState(false);
   const [elapsed, setElapsed]     = useState(0);
   const [chatVisible, setChatVisible] = useState(false);
+  const [routeCoords, setRouteCoords] = useState(null);
 
   const timerRef = useRef(null);
   const mapRef   = useRef(null);
+
+  useEffect(() => {
+    const MAPS_KEY = 'AIzaSyCgmH-sn4SOZ8ujKoJMuLImFsFvtzXFpWA';
+    fetch(
+      `https://maps.googleapis.com/maps/api/directions/json?origin=${origenLat},${origenLng}&destination=${destinoLat},${destinoLng}&mode=driving&key=${MAPS_KEY}`
+    )
+      .then(r => r.json())
+      .then(data => {
+        if (data.routes?.length > 0) {
+          setRouteCoords(decodePolyline(data.routes[0].overview_polyline.points));
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const fitMap = () => {
     if (!mapRef.current) return;
@@ -62,6 +88,7 @@ export default function EnServicioScreen({ params, goHome }) {
       .then(({ data }) => {
         if (data?.cliente?.nombre)   setClienteNombre(data.cliente.nombre);
         if (data?.cliente?.telefono) setClienteTelefono(data.cliente.telefono);
+        if (data?.cliente?.rating)   setClienteRating(Number(data.cliente.rating).toFixed(1));
       })
       .catch(() => {});
   }, [serviceId]);
@@ -89,7 +116,8 @@ export default function EnServicioScreen({ params, goHome }) {
     setLoading(true);
 
     const siguienteEstado = phase === 0 ? 'en_servicio' : 'completado';
-    await conductorApi.estadoViaje(serviceId, siguienteEstado).catch(() => {});
+    const extra = phase === 1 ? { precio_final: precioAceptado } : {};
+    await conductorApi.estadoViaje(serviceId, siguienteEstado, extra).catch(() => {});
 
     if (phase === 1) {
       const comisionMonto = Math.round(precioAceptado * 0.095);
@@ -107,8 +135,11 @@ export default function EnServicioScreen({ params, goHome }) {
     Linking.openURL(`tel:${clienteTelefono}`).catch(() => {});
   };
 
-  const handleNavegar = (lat, lng) => {
-    const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+  const handleNavegar = (lat, lng, address) => {
+    const dest = address
+      ? encodeURIComponent(address)
+      : `${lat},${lng}`;
+    const gmaps = `https://www.google.com/maps/dir/?api=1&destination=${dest}&travelmode=driving`;
     Linking.openURL(gmaps).catch(() => Linking.openURL(`geo:${lat},${lng}`));
   };
 
@@ -147,12 +178,12 @@ export default function EnServicioScreen({ params, goHome }) {
               <View style={s.pinBlack}><Text style={s.pinDestEmoji}>🏁</Text></View>
             </Marker>
             <Polyline
-              coordinates={[
+              coordinates={routeCoords || [
                 { latitude: origenLat,  longitude: origenLng },
                 { latitude: destinoLat, longitude: destinoLng },
               ]}
               strokeColor={C.yellow}
-              strokeWidth={3}
+              strokeWidth={4}
             />
           </MapView>
           <View style={s.statusBadge}>
@@ -179,7 +210,7 @@ export default function EnServicioScreen({ params, goHome }) {
               <TouchableOpacity style={s.callBtn} onPress={handleLlamar} activeOpacity={0.7}>
                 <Text style={s.callIcon}>📞</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.chatBtn} activeOpacity={0.7}>
+              <TouchableOpacity style={s.chatBtn} onPress={() => setChatVisible(true)} activeOpacity={0.7}>
                 <Text style={s.chatIcon}>💬</Text>
               </TouchableOpacity>
             </View>
@@ -196,7 +227,7 @@ export default function EnServicioScreen({ params, goHome }) {
             }
           </TouchableOpacity>
           <View style={s.secondaryBtns}>
-            <TouchableOpacity style={s.btnNavegar} onPress={() => handleNavegar(origenLat, origenLng)} activeOpacity={0.85}>
+            <TouchableOpacity style={s.btnNavegar} onPress={() => handleNavegar(origenLat, origenLng, origenDir)} activeOpacity={0.85}>
               <Text style={s.btnNavegarTxt}>🗺️  NAVEGAR</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.btnNavegar} onPress={() => setChatVisible(true)} activeOpacity={0.85}>
@@ -243,12 +274,12 @@ export default function EnServicioScreen({ params, goHome }) {
               <View style={s.pinBlack}><Text style={s.pinDestEmoji}>🏁</Text></View>
             </Marker>
             <Polyline
-              coordinates={[
+              coordinates={routeCoords || [
                 { latitude: origenLat,  longitude: origenLng },
                 { latitude: destinoLat, longitude: destinoLng },
               ]}
               strokeColor={C.yellow}
-              strokeWidth={3}
+              strokeWidth={4}
             />
           </MapView>
         </View>
@@ -293,7 +324,7 @@ export default function EnServicioScreen({ params, goHome }) {
             }
           </TouchableOpacity>
           <View style={s.secondaryBtns}>
-            <TouchableOpacity style={s.btnNavegar} onPress={() => handleNavegar(destinoLat, destinoLng)} activeOpacity={0.85}>
+            <TouchableOpacity style={s.btnNavegar} onPress={() => handleNavegar(destinoLat, destinoLng, destinoDir)} activeOpacity={0.85}>
               <Text style={s.btnNavegarTxt}>🗺️  NAVEGAR</Text>
             </TouchableOpacity>
             <TouchableOpacity style={s.btnNavegar} onPress={() => setChatVisible(true)} activeOpacity={0.85}>

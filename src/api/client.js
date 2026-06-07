@@ -5,7 +5,7 @@ import { getBackendToken, storeBackendToken, clearBackendToken, getPhone } from 
 
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 10000,
+  timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -52,7 +52,7 @@ api.interceptors.response.use(
 export const conductorApi = {
   pendientes:       (tipo, params)        => api.get(`/services/pendientes/${tipo}`, { params }),
   historial:        (conductorId)         => api.get(`/conductor/${conductorId}/historial`),
-  estadoViaje:      (serviceId, estado)   => api.patch(`/services/${serviceId}/estado`, { estado }),
+  estadoViaje:      (serviceId, estado, extra = {}) => api.patch(`/services/${serviceId}/estado`, { estado, ...extra }),
   perfil:           (conductorId)         => api.get(`/conductor/${conductorId}/perfil`),
   actualizarPerfil: (conductorId, data)   => api.patch(`/conductor/${conductorId}/perfil`, data),
   estado:           (conductorId)         => api.get(`/conductor/${conductorId}/estado`),
@@ -85,7 +85,8 @@ export const authApi = {
 };
 
 export const servicesApi = {
-  obtener: (serviceId) => api.get(`/services/${serviceId}`),
+  obtener:  (serviceId)    => api.get(`/services/${serviceId}`),
+  conductor: (conductorId) => api.get(`/services/conductor/${conductorId}`),
 };
 
 export const documentosApi = {

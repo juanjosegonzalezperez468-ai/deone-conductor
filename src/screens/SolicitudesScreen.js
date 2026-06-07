@@ -2,14 +2,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, Modal,
   StyleSheet, StatusBar, ActivityIndicator, Alert, TextInput,
+  Switch, Animated, Dimensions,
 } from 'react-native';
 import * as Location from 'expo-location';
-import { conductorApi, vehiculoApi, offersApi } from '../api/client';
+import { conductorApi, vehiculoApi, offersApi, locationsApi } from '../api/client';
 import { SERVICES } from '../constants/services';
 import { getUserUuid } from '../utils/tokenStorage';
 import { C, SHADOW } from '../constants/theme';
 
 const POLL_INTERVAL = 8000;
+const DRAWER_W = Dimensions.get('window').width * 0.82;
 
 function haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
@@ -23,7 +25,7 @@ function haversineKm(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export default function SolicitudesScreen({ navigate }) {
+export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDisponibleChange }) {
   const [solicitudes,    setSolicitudes]    = useState([]);
   const [loading,        setLoading]        = useState(true);
   const [tipoServicio,   setTipoServicio]   = useState(null);
@@ -33,9 +35,12 @@ export default function SolicitudesScreen({ navigate }) {
   const [precioContra,   setPrecioContra]   = useState('');
   const [loadingAceptar, setLoadingAceptar] = useState(false);
   const [loadingContra,  setLoadingContra]  = useState(false);
+  const [drawerOpen,     setDrawerOpen]     = useState(false);
+  const [conductorNombre, setConductorNombre] = useState('');
 
   const uuidRef     = useRef('');
   const locationRef = useRef(null);
+  const drawerAnim  = useRef(new Animated.Value(-DRAWER_W)).current;
 
   useEffect(() => { locationRef.current = location; }, [location]);
 
@@ -43,6 +48,11 @@ export default function SolicitudesScreen({ navigate }) {
     (async () => {
       const uuid = await getUserUuid();
       if (uuid) uuidRef.current = uuid;
+
+      try {
+        const { data: perfil } = await conductorApi.perfil(uuid);
+        if (perfil?.nombre) setConductorNombre(perfil.nombre);
+      } catch {}
 
       try {
         const { data } = await vehiculoApi.obtener(uuid);
@@ -79,6 +89,32 @@ export default function SolicitudesScreen({ navigate }) {
       setSolicitudes((data?.solicitudes || []).filter(s => s.estado === 'pendiente'));
     } catch {}
   };
+
+  const toggleDisponible = async (val) => {
+    onDisponibleChange(val);
+    try {
+      const loc = locationRef.current;
+      await locationsApi.actualizar({
+        conductor_id:      uuidRef.current,
+        lat:               loc?.latitude  || 5.0703,
+        lng:               loc?.longitude || -75.5138,
+        disponible:        val,
+        servicios_activos: tipoServicio ? [tipoServicio] : [],
+      });
+    } catch {}
+  };
+
+  const abrirDrawer = () => {
+    setDrawerOpen(true);
+    Animated.timing(drawerAnim, { toValue: 0, duration: 250, useNativeDriver: true }).start();
+  };
+
+  const cerrarDrawer = (cb) => {
+    Animated.timing(drawerAnim, { toValue: -DRAWER_W, duration: 200, useNativeDriver: true })
+      .start(() => { setDrawerOpen(false); if (cb) cb(); });
+  };
+
+  const irA = (pantalla) => cerrarDrawer(() => navigate(pantalla));
 
   const abrirDetalle = (sol) => {
     setSelected(sol);
@@ -140,42 +176,47 @@ export default function SolicitudesScreen({ navigate }) {
       ).toFixed(1)
     : '—';
 
-  /* ── Estado sin vehículo configurado ── */
-  if (!loading && !tipoServicio) {
-    return (
-      <View style={s.root}>
-        <StatusBar backgroundColor={C.bg} barStyle="dark-content" />
-        <View style={s.header}>
-          <Text style={s.heading}>Carreras</Text>
-        </View>
-        <View style={s.emptyWrap}>
-          <Text style={s.emptyIcon}>🏍️</Text>
-          <Text style={s.emptyTitle}>Sin vehículo configurado</Text>
-          <Text style={s.emptySub}>Ve a Cuenta y registra tu vehículo para ver las carreras disponibles.</Text>
-        </View>
-      </View>
-    );
-  }
-
   return (
     <View style={s.root}>
       <StatusBar backgroundColor={C.bg} barStyle="dark-content" />
 
       {/* ── HEADER ── */}
       <View style={s.header}>
+        <TouchableOpacity onPress={abrirDrawer} style={s.menuBtn} activeOpacity={0.7}>
+          <View style={s.bar} />
+          <View style={s.bar} />
+          <View style={s.bar} />
+        </TouchableOpacity>
+
         <Text style={s.heading}>Carreras</Text>
-        {solicitudes.length > 0 && (
-          <View style={s.badge}>
-            <Text style={s.badgeTxt}>{solicitudes.length} disponible{solicitudes.length !== 1 ? 's' : ''}</Text>
-          </View>
-        )}
+
+        <View style={s.disponibleWrap}>
+          <Text style={disponible ? s.activoLbl : s.inactivoLbl}>
+            {disponible ? 'ACTIVO' : 'INACTIVO'}
+          </Text>
+          <Switch
+            value={disponible}
+            onValueChange={toggleDisponible}
+            trackColor={{ false: C.border, true: C.green }}
+            thumbColor={C.white}
+            ios_backgroundColor={C.border}
+          />
+        </View>
       </View>
 
-      {/* ── LISTA ── */}
+      {/* ── CONTENIDO ── */}
       {loading ? (
         <View style={s.emptyWrap}>
           <ActivityIndicator size="large" color={C.yellow} />
           <Text style={s.emptySub}>Buscando carreras…</Text>
+        </View>
+      ) : !tipoServicio ? (
+        <View style={s.emptyWrap}>
+          <Text style={s.emptyIcon}>🏍️</Text>
+          <Text style={s.emptyTitle}>Sin vehículo configurado</Text>
+          <Text style={s.emptySub}>
+            Abre el menú (≡) y ve a Cuenta para registrar tu vehículo.
+          </Text>
         </View>
       ) : (
         <FlatList
@@ -183,6 +224,17 @@ export default function SolicitudesScreen({ navigate }) {
           keyExtractor={item => item.id?.toString()}
           contentContainerStyle={solicitudes.length === 0 ? s.listEmpty : s.listContent}
           showsVerticalScrollIndicator={false}
+          ListHeaderComponent={
+            solicitudes.length > 0 && (
+              <View style={s.badgeRow}>
+                <View style={s.badge}>
+                  <Text style={s.badgeTxt}>
+                    {solicitudes.length} disponible{solicitudes.length !== 1 ? 's' : ''}
+                  </Text>
+                </View>
+              </View>
+            )
+          }
           ListEmptyComponent={
             <View style={s.emptyWrap}>
               <Text style={s.emptyIcon}>🔍</Text>
@@ -204,7 +256,6 @@ export default function SolicitudesScreen({ navigate }) {
       <Modal visible={!!selected} transparent animationType="slide">
         <View style={s.overlay}>
           {showContra ? (
-            /* ── Pantalla contraoferta ── */
             <View style={s.modalCard}>
               <View style={s.modalTop}>
                 <View style={s.badge}>
@@ -258,7 +309,6 @@ export default function SolicitudesScreen({ navigate }) {
               </View>
             </View>
           ) : (
-            /* ── Detalle carrera ── */
             <View style={s.modalCard}>
               <View style={s.modalTop}>
                 {selSrv && (
@@ -310,32 +360,73 @@ export default function SolicitudesScreen({ navigate }) {
                 </View>
               </View>
 
-              <View style={s.btnCol}>
-                <View style={s.btnRow}>
-                  <TouchableOpacity
-                    style={s.btnSecundario}
-                    onPress={() => setShowContra(true)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={s.btnSecundarioTxt}>CONTRAOFERTAR</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={loadingAceptar ? s.btnDis : s.btnPrimario}
-                    onPress={aceptarViaje}
-                    activeOpacity={0.85}
-                  >
-                    {loadingAceptar
-                      ? <ActivityIndicator color={C.black} size="small" />
-                      : <Text style={s.btnPrimarioTxt}>ACEPTAR</Text>
-                    }
-                  </TouchableOpacity>
-                </View>
+              <View style={s.btnRow}>
+                <TouchableOpacity
+                  style={s.btnSecundario}
+                  onPress={() => setShowContra(true)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={s.btnSecundarioTxt}>CONTRAOFERTAR</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={loadingAceptar ? s.btnDis : s.btnPrimario}
+                  onPress={aceptarViaje}
+                  activeOpacity={0.85}
+                >
+                  {loadingAceptar
+                    ? <ActivityIndicator color={C.black} size="small" />
+                    : <Text style={s.btnPrimarioTxt}>ACEPTAR</Text>
+                  }
+                </TouchableOpacity>
               </View>
             </View>
           )}
         </View>
       </Modal>
+
+      {/* ── DRAWER ── */}
+      {drawerOpen && (
+        <>
+          <TouchableOpacity
+            style={[StyleSheet.absoluteFillObject, s.drawerDim]}
+            onPress={() => cerrarDrawer()}
+            activeOpacity={1}
+          />
+          <Animated.View style={[s.drawerPanel, { transform: [{ translateX: drawerAnim }] }]}>
+            <View style={s.drawerPerfil}>
+              <View style={s.drawerAvatar}>
+                <Text style={s.drawerAvatarTxt}>
+                  {(conductorNombre || 'C').charAt(0).toUpperCase()}
+                </Text>
+              </View>
+              <Text style={s.drawerNombre} numberOfLines={1}>
+                {conductorNombre || 'Conductor'}
+              </Text>
+              <Text style={s.drawerSub}>Conductor Deone</Text>
+            </View>
+
+            <View style={s.drawerSep} />
+
+            <DrawerItem icon="💰" label="Ganancias" onPress={() => irA('Ganancias')} />
+            <DrawerItem icon="📋" label="Actividad"  onPress={() => irA('Actividad')} />
+            <DrawerItem icon="👤" label="Cuenta"     onPress={() => irA('Cuenta')} />
+            {isAdmin && (
+              <DrawerItem icon="🛡️" label="Admin" onPress={() => irA('Admin')} />
+            )}
+          </Animated.View>
+        </>
+      )}
     </View>
+  );
+}
+
+function DrawerItem({ icon, label, onPress }) {
+  return (
+    <TouchableOpacity style={di.item} onPress={onPress} activeOpacity={0.7}>
+      <Text style={di.icon}>{icon}</Text>
+      <Text style={di.label}>{label}</Text>
+      <Text style={di.arrow}>›</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -367,9 +458,7 @@ function RideCard({ solicitud, location, onPress }) {
           <View style={rc.dotB} />
           <Text style={rc.addr} numberOfLines={1}>{solicitud.destino_direccion || 'Destino'}</Text>
         </View>
-        {dist && (
-          <Text style={rc.dist}>{dist} km de ti</Text>
-        )}
+        {dist && <Text style={rc.dist}>{dist} km de ti</Text>}
       </View>
 
       <View style={rc.right}>
@@ -383,10 +472,11 @@ function RideCard({ solicitud, location, onPress }) {
 }
 
 const s = StyleSheet.create({
-  root:    { flex: 1, backgroundColor: C.bg },
+  root: { flex: 1, backgroundColor: C.bg },
 
+  /* Header */
   header: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 12,
     paddingTop:        52,
     paddingBottom:     14,
     backgroundColor:   C.bg,
@@ -394,16 +484,25 @@ const s = StyleSheet.create({
     alignItems:        'center',
     justifyContent:    'space-between',
   },
-  heading: { color: C.black, fontSize: 28, fontWeight: '800', letterSpacing: -0.5 },
+  menuBtn:  { padding: 10, justifyContent: 'center' },
+  bar:      { width: 22, height: 2.5, backgroundColor: C.black, borderRadius: 2, marginVertical: 2.5 },
+  heading:  { color: C.black, fontSize: 24, fontWeight: '800', letterSpacing: -0.5, flex: 1, textAlign: 'center' },
+  disponibleWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  activoLbl:   { color: C.green, fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
+  inactivoLbl: { color: C.gray,  fontSize: 10, fontWeight: '600', letterSpacing: 0.8 },
+
+  /* Badge */
+  badgeRow:  { paddingHorizontal: 4, paddingBottom: 10 },
   badge: {
-    backgroundColor: C.yellow,
-    borderRadius:    12,
+    backgroundColor:  C.yellow,
+    borderRadius:     12,
     paddingHorizontal: 10,
     paddingVertical:   4,
+    alignSelf:         'flex-start',
   },
-  badgeTxt: { color: C.black, fontSize: 12, fontWeight: '700' },
+  badgeTxt:  { color: C.black, fontSize: 12, fontWeight: '700' },
 
-  listContent: { paddingHorizontal: 16, paddingBottom: 40 },
+  listContent: { paddingHorizontal: 16, paddingBottom: 40, paddingTop: 4 },
   listEmpty:   { flex: 1 },
 
   emptyWrap:  { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 },
@@ -470,58 +569,87 @@ const s = StyleSheet.create({
   metaLbl:     { color: C.gray,  fontSize: 11 },
   metaDivider: { width: 1, height: 36, backgroundColor: C.border },
 
-  btnCol: { gap: 10 },
-  btnRow: { flexDirection: 'row', gap: 10 },
-
-  btnSecundario: {
-    flex:            1,
-    backgroundColor: C.bg,
-    borderRadius:    16,
-    paddingVertical: 16,
-    alignItems:      'center',
-    borderWidth:     1,
-    borderColor:     C.border,
+  btnRow:         { flexDirection: 'row', gap: 10 },
+  btnSecundario:  {
+    flex: 1, backgroundColor: C.bg, borderRadius: 16,
+    paddingVertical: 16, alignItems: 'center',
+    borderWidth: 1, borderColor: C.border,
   },
-  btnSecundarioTxt: { color: C.gray, fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
-
-  btnPrimario: {
-    flex:            1,
-    backgroundColor: C.yellow,
-    borderRadius:    16,
-    paddingVertical: 16,
-    alignItems:      'center',
+  btnSecundarioTxt: { color: C.gray,  fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
+  btnPrimario:    {
+    flex: 1, backgroundColor: C.yellow, borderRadius: 16,
+    paddingVertical: 16, alignItems: 'center',
   },
-  btnDis: {
-    flex:            1,
-    backgroundColor: C.border,
-    borderRadius:    16,
-    paddingVertical: 16,
-    alignItems:      'center',
+  btnDis:         {
+    flex: 1, backgroundColor: C.border, borderRadius: 16,
+    paddingVertical: 16, alignItems: 'center',
   },
   btnPrimarioTxt: { color: C.black, fontSize: 15, fontWeight: '800', letterSpacing: 0.5 },
 
   /* Contraoferta */
   contraRef:   { color: C.gray, fontSize: 13 },
-  contraLabel: {
-    color: C.gray, fontSize: 12, fontWeight: '600',
-    letterSpacing: 1, marginTop: 14, marginBottom: 8,
-  },
+  contraLabel: { color: C.gray, fontSize: 12, fontWeight: '600', letterSpacing: 1, marginTop: 14, marginBottom: 8 },
   precioRow: {
-    flexDirection:     'row',
-    alignItems:        'center',
-    backgroundColor:   C.bg,
-    borderRadius:      16,
-    paddingHorizontal: 16,
-    paddingVertical:   4,
-    marginBottom:      8,
-    borderWidth:       2,
-    borderColor:       C.yellow,
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: C.bg, borderRadius: 16,
+    paddingHorizontal: 16, paddingVertical: 4,
+    marginBottom: 8, borderWidth: 2, borderColor: C.yellow,
   },
   precioSym:   { color: C.black, fontSize: 24, fontWeight: '800', marginRight: 4 },
   precioField: { flex: 1, color: C.black, fontSize: 28, fontWeight: '800', paddingVertical: 10 },
   precioCOP:   { color: C.gray, fontSize: 14, fontWeight: '600', marginLeft: 4 },
   precioFmt:   { color: C.gray, fontSize: 13, textAlign: 'center', marginBottom: 4 },
   precioErr:   { color: C.red,  fontSize: 12, textAlign: 'center', marginBottom: 8 },
+
+  /* Drawer */
+  drawerDim: {
+    backgroundColor: 'rgba(0,0,0,0.50)',
+    zIndex: 50,
+  },
+  drawerPanel: {
+    position:        'absolute',
+    top:             0,
+    left:            0,
+    bottom:          0,
+    width:           DRAWER_W,
+    backgroundColor: C.white,
+    zIndex:          60,
+    paddingTop:      60,
+    shadowColor:     '#000',
+    shadowOffset:    { width: 6, height: 0 },
+    shadowOpacity:   0.15,
+    shadowRadius:    16,
+    elevation:       20,
+  },
+  drawerPerfil: {
+    paddingHorizontal: 24,
+    paddingBottom:     24,
+  },
+  drawerAvatar: {
+    width:           68,
+    height:          68,
+    borderRadius:    34,
+    backgroundColor: C.yellow,
+    alignItems:      'center',
+    justifyContent:  'center',
+    marginBottom:    14,
+  },
+  drawerAvatarTxt: { color: C.black, fontSize: 30, fontWeight: '900' },
+  drawerNombre:    { color: C.black, fontSize: 18, fontWeight: '800', marginBottom: 4 },
+  drawerSub:       { color: C.gray,  fontSize: 13 },
+  drawerSep:       { height: 1, backgroundColor: C.border, marginHorizontal: 16, marginBottom: 8 },
+});
+
+const di = StyleSheet.create({
+  item: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    paddingHorizontal: 24,
+    paddingVertical:   18,
+  },
+  icon:  { fontSize: 22, marginRight: 16, width: 30, textAlign: 'center' },
+  label: { flex: 1, color: C.black, fontSize: 16, fontWeight: '600' },
+  arrow: { color: C.gray, fontSize: 22, fontWeight: '300' },
 });
 
 const rc = StyleSheet.create({
@@ -542,7 +670,7 @@ const rc = StyleSheet.create({
   },
   icon:    { fontSize: 24 },
   info:    { flex: 1, marginRight: 10 },
-  srvName: { color: C.gray, fontSize: 11, fontWeight: '600', marginBottom: 6, letterSpacing: 0.5 },
+  srvName: { color: C.gray,  fontSize: 11, fontWeight: '600', marginBottom: 6, letterSpacing: 0.5 },
   route:   { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   dotA:    { width: 6, height: 6, borderRadius: 3, backgroundColor: C.yellow, marginRight: 6, flexShrink: 0 },
   dotB:    { width: 6, height: 6, borderRadius: 3, backgroundColor: C.black,  marginRight: 6, flexShrink: 0 },
