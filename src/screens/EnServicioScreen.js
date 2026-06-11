@@ -5,8 +5,7 @@ import {
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import ChatScreen from './ChatScreen';
-import { conductorApi, billingApi, servicesApi } from '../api/client';
-import { getUserUuid } from '../utils/tokenStorage';
+import { conductorApi, servicesApi } from '../api/client';
 import { C, SHADOW } from '../constants/theme';
 
 function decodePolyline(encoded) {
@@ -76,11 +75,8 @@ export default function EnServicioScreen({ params, goHome }) {
     );
   };
 
-  // Marcar en_camino inmediatamente al entrar a esta pantalla
-  useEffect(() => {
-    if (!serviceId) return;
-    conductorApi.estadoViaje(serviceId, 'en_camino').catch(() => {});
-  }, [serviceId]);
+  // Marcar en_camino cuando el conductor presiona HE LLEGADO AL CLIENTE (phase 0→1)
+  // No se marca automáticamente para que el cliente pueda ver el estado "aceptado"
 
   useEffect(() => {
     if (!serviceId) return;
@@ -115,16 +111,15 @@ export default function EnServicioScreen({ params, goHome }) {
     if (loading) return;
     setLoading(true);
 
-    const siguienteEstado = phase === 0 ? 'en_servicio' : 'completado';
+    const estadoMap = { 0: 'en_servicio', 1: 'completado' };
+    const siguienteEstado = estadoMap[phase];
     const extra = phase === 1 ? { precio_final: precioAceptado } : {};
-    await conductorApi.estadoViaje(serviceId, siguienteEstado, extra).catch(() => {});
-
-    if (phase === 1) {
-      const comisionMonto = Math.round(precioAceptado * 0.095);
-      await billingApi.descontarComision({
-        conductor_id: await getUserUuid(),
-        monto:        comisionMonto,
-      }).catch(() => {});
+    console.log('[EnServicio] PATCH estado:', siguienteEstado, 'serviceId:', serviceId);
+    try {
+      const res = await conductorApi.estadoViaje(serviceId, siguienteEstado, extra);
+      console.log('[EnServicio] PATCH ok:', res?.status, res?.data);
+    } catch (e) {
+      console.warn('[EnServicio] PATCH error:', e?.response?.status, e?.response?.data || e?.message);
     }
 
     setLoading(false);

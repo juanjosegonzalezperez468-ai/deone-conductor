@@ -188,6 +188,7 @@ export default function App() {
 
             <View style={dr.sep} />
 
+            <DrawerItem icon="🏠" label="Inicio"    onPress={() => irA('App')} />
             <DrawerItem icon="💰" label="Ganancias" onPress={() => irA('Ganancias')} />
             <DrawerItem icon="📋" label="Actividad"  onPress={() => irA('Actividad')} />
             <DrawerItem icon="👤" label="Cuenta"     onPress={() => irA('Cuenta')} />

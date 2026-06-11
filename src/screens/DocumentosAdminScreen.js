@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, Image,
-  StyleSheet, StatusBar, ActivityIndicator, Alert, Modal,
+  StyleSheet, StatusBar, ActivityIndicator, Alert, Modal, RefreshControl,
 } from 'react-native';
 import { adminApi, documentosApi } from '../api/client';
 import { C, SHADOW } from '../constants/theme';
@@ -90,12 +90,13 @@ export default function DocumentosAdminScreen({ params, onBack }) {
 
   const [documentos,  setDocumentos]  = useState([]);
   const [loading,     setLoading]     = useState(true);
+  const [refreshing,  setRefreshing]  = useState(false);
   const [procesando,  setProcesando]  = useState(null);
   const [imagenModal, setImagenModal] = useState(null);
   const [motivoDoc,   setMotivoDoc]   = useState(null);
 
-  const cargar = useCallback(async () => {
-    setLoading(true);
+  const cargar = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true); else setLoading(true);
     try {
       const { data } = await documentosApi.obtener(conductorId);
       setDocumentos(Array.isArray(data) ? data : []);
@@ -103,6 +104,7 @@ export default function DocumentosAdminScreen({ params, onBack }) {
       Alert.alert('Error', 'No se pudieron cargar los documentos.');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [conductorId]);
 
@@ -193,7 +195,13 @@ export default function DocumentosAdminScreen({ params, onBack }) {
           <ActivityIndicator color={C.yellow} size="large" />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={s.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={s.content}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={() => cargar(true)} colors={[C.yellow]} />
+          }
+        >
           {/* Progress */}
           <View style={s.progressCard}>
             <View style={s.progressTop}>

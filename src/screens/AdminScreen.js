@@ -417,7 +417,7 @@ function EstadisticasSection() {
 
 /* ─── Pantalla principal Admin ───────────────────── */
 
-export default function AdminScreen({ navigate }) {
+export default function AdminScreen({ navigate, onMenuPress }) {
   const [seccion, setSeccion] = useState('conductores');
 
   return (
@@ -426,6 +426,9 @@ export default function AdminScreen({ navigate }) {
 
       {/* Header */}
       <View style={s.header}>
+        <TouchableOpacity style={s.menuBtn} onPress={onMenuPress} activeOpacity={0.7}>
+          <Text style={s.menuIcon}>☰</Text>
+        </TouchableOpacity>
         <View style={s.headerLeft}>
           <Text style={s.headerTitle}>Panel Admin</Text>
           <Text style={s.headerSub}>Deone — Manizales</Text>
@@ -473,12 +476,14 @@ const s = StyleSheet.create({
     flexDirection:     'row',
     alignItems:        'center',
     justifyContent:    'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
     paddingTop:        52,
     paddingBottom:     14,
     backgroundColor:   C.bg,
   },
-  headerLeft:  {},
+  menuBtn:  { padding: 6, marginRight: 8 },
+  menuIcon: { fontSize: 24, color: C.black },
+  headerLeft:  { flex: 1 },
   headerTitle: { fontSize: 22, fontWeight: '800', color: C.black },
   headerSub:   { fontSize: 13, color: C.gray, marginTop: 2 },
   shieldBadge: {
