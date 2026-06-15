@@ -116,6 +116,7 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
         precio_ofrecido: selected.precio_propuesto,
         tipo:            'acepta',
       });
+      await conductorApi.estadoViaje(selected.id, 'confirmado', { conductor_id: uuidRef.current });
       const captured = selected;
       cerrarModal();
       navigate('EnServicio', { solicitud: captured, precioAceptado: captured.precio_propuesto });

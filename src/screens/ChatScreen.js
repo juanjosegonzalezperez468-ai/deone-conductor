@@ -20,7 +20,7 @@ export default function ChatScreen({ serviceId, onClose }) {
   const fetchMensajes = async () => {
     try {
       const { data } = await chatApi.getMensajes(serviceId, uuidRef.current);
-      if (Array.isArray(data)) setMensajes(data);
+      if (Array.isArray(data?.mensajes)) setMensajes(data.mensajes);
     } catch {}
   };
 
