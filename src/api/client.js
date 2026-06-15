@@ -44,6 +44,16 @@ api.interceptors.response.use(
         _refreshing = false;
       }
     }
+    if (error.response?.status === 429) {
+      error.friendlyMessage = 'Demasiadas solicitudes. Espera un momento e intenta de nuevo.';
+    }
+    if (error.response?.status === 422) {
+      const detail = error.response?.data?.detail;
+      error.friendlyMessage =
+        typeof detail === 'object' && detail?.mensaje
+          ? detail.mensaje
+          : 'Datos inválidos. Revisa la información e intenta de nuevo.';
+    }
     _refreshing = false;
     return Promise.reject(error);
   },
@@ -119,6 +129,7 @@ export const adminApi = {
   conductoresActivos:    ()        => api.get('/admin/conductores/activos'),
   aprobarConductor:      (id)      => api.patch(`/admin/conductor/${id}/aprobar`),
   rechazarConductor:     (id, mot) => api.patch(`/admin/conductor/${id}/rechazar`, { motivo: mot }),
+  reactivarConductor:    (id, mot) => api.patch(`/admin/conductor/${id}/reactivar`, { motivo: mot }),
   aprobarDocumento:      (id)      => api.patch(`/admin/documento/${id}/aprobar`),
   rechazarDocumento:     (id, mot) => api.patch(`/admin/documento/${id}/rechazar`, { motivo: mot }),
   recargasPendientes:    ()        => api.get('/admin/recargas/pendientes'),

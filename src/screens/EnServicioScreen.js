@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  StatusBar, ActivityIndicator, Linking, Image, Modal,
+  StatusBar, ActivityIndicator, Linking, Image, Modal, Alert,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import ChatScreen from './ChatScreen';
@@ -114,16 +114,15 @@ export default function EnServicioScreen({ params, goHome }) {
     const estadoMap = { 0: 'en_servicio', 1: 'completado' };
     const siguienteEstado = estadoMap[phase];
     const extra = phase === 1 ? { precio_final: precioAceptado } : {};
-    console.log('[EnServicio] PATCH estado:', siguienteEstado, 'serviceId:', serviceId);
     try {
-      const res = await conductorApi.estadoViaje(serviceId, siguienteEstado, extra);
-      console.log('[EnServicio] PATCH ok:', res?.status, res?.data);
+      await conductorApi.estadoViaje(serviceId, siguienteEstado, extra);
+      setPhase(prev => prev + 1);
     } catch (e) {
-      console.warn('[EnServicio] PATCH error:', e?.response?.status, e?.response?.data || e?.message);
+      const msg = e?.friendlyMessage || 'No se pudo actualizar el estado. Intenta de nuevo.';
+      Alert.alert('Error', msg);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
-    setPhase(prev => prev + 1);
   };
 
   const handleLlamar = () => {
