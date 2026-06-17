@@ -100,6 +100,28 @@ export default function EnServicioScreen({ params, goHome }) {
     return () => clearInterval(timerRef.current);
   }, [phase]);
 
+  // Detectar si el cliente canceló el viaje mientras está activo
+  useEffect(() => {
+    if (!serviceId || phase === 2) return;
+    let cancelado = false;
+    const interval = setInterval(async () => {
+      if (cancelado) return;
+      try {
+        const { data } = await servicesApi.obtener(serviceId);
+        if (data?.estado === 'cancelado') {
+          cancelado = true;
+          clearInterval(interval);
+          Alert.alert(
+            'Viaje cancelado',
+            'El cliente canceló el viaje.',
+            [{ text: 'Aceptar', onPress: goHome }]
+          );
+        }
+      } catch {}
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [serviceId, phase]);
+
   const formatElapsed = (secs) => {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
