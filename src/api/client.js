@@ -82,6 +82,11 @@ export const locationsApi = {
   actualizar: (data) => api.post('/locations/conductor/actualizar', data),
 };
 
+export const penaltiesApi = {
+  registrarCancelacion: (conductorId, solicitudId) =>
+    api.post('/penalties/cancelacion', { conductor_id: conductorId, solicitud_id: solicitudId }),
+};
+
 export const billingApi = {
   saldo:             (conductorId) => api.get(`/billing/saldo/${conductorId}`),
   descontarComision: (data)        => api.post('/billing/descontar-comision', data),

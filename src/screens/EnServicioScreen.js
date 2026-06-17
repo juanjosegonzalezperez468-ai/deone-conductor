@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
-  StatusBar, ActivityIndicator, Linking, Image, Modal, Alert,
+  StatusBar, ActivityIndicator, Linking, Image, Modal, Alert, BackHandler,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import ChatScreen from './ChatScreen';
-import { conductorApi, servicesApi } from '../api/client';
+import { conductorApi, servicesApi, penaltiesApi } from '../api/client';
 import { C, SHADOW } from '../constants/theme';
 
 function decodePolyline(encoded) {
@@ -30,6 +30,7 @@ export default function EnServicioScreen({ params, goHome }) {
     origen_direccion:  origenDir   = 'Punto de recogida',
     destino_direccion: destinoDir  = 'Destino',
     cliente_id:        clienteId   = '',
+    conductor_id:      conductorId = '',
     origen_lat:        origenLat   = 5.0703,
     origen_lng:        origenLng   = -75.5138,
     destino_lat:       destinoLat  = 5.0650,
@@ -43,6 +44,7 @@ export default function EnServicioScreen({ params, goHome }) {
 
   const [phase, setPhase]         = useState(0);
   const [loading, setLoading]     = useState(false);
+  const [cancelando, setCancelando] = useState(false);
   const [elapsed, setElapsed]     = useState(0);
   const [chatVisible, setChatVisible] = useState(false);
   const [routeCoords, setRouteCoords] = useState(null);
@@ -121,6 +123,54 @@ export default function EnServicioScreen({ params, goHome }) {
     }, 10000);
     return () => clearInterval(interval);
   }, [serviceId, phase]);
+
+  const handleVolver = () => {
+    Alert.alert(
+      'Volver al inicio',
+      'El viaje seguirá activo. Podrás continuar viéndolo desde aquí.',
+      [
+        { text: 'Quedarme', style: 'cancel' },
+        { text: 'Volver al inicio', onPress: goHome },
+      ],
+    );
+  };
+
+  const handleCancelar = () => {
+    if (cancelando) return;
+    Alert.alert(
+      'Cancelar viaje',
+      'Ya aceptaste este viaje. Cancelarlo con frecuencia puede afectar tu cuenta. ¿Seguro que quieres cancelar?',
+      [
+        { text: 'No, continuar', style: 'cancel' },
+        {
+          text: 'Sí, cancelar',
+          style: 'destructive',
+          onPress: async () => {
+            setCancelando(true);
+            try {
+              await conductorApi.estadoViaje(serviceId, 'cancelado');
+              penaltiesApi.registrarCancelacion(conductorId, serviceId).catch(() => {});
+              goHome();
+            } catch (e) {
+              setCancelando(false);
+              const msg = e?.friendlyMessage || 'No se pudo cancelar el viaje. Intenta de nuevo.';
+              Alert.alert('Error', msg);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  // Botón físico/gesto "atrás" de Android: mismo efecto que la flecha (no cancela)
+  useEffect(() => {
+    if (phase === 2) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      handleVolver();
+      return true;
+    });
+    return () => sub.remove();
+  }, [phase]);
 
   const formatElapsed = (secs) => {
     const m = Math.floor(secs / 60);
@@ -202,6 +252,11 @@ export default function EnServicioScreen({ params, goHome }) {
               strokeWidth={4}
             />
           </MapView>
+          <View style={s.topRowFloat}>
+            <TouchableOpacity style={s.backBtnFloat} onPress={handleVolver} activeOpacity={0.8}>
+              <Text style={s.backBtnFloatTxt}>←</Text>
+            </TouchableOpacity>
+          </View>
           <View style={s.statusBadge}>
             <View style={s.pulseDot} />
             <Text style={s.statusTxt}>EN CAMINO AL CLIENTE</Text>
@@ -250,6 +305,9 @@ export default function EnServicioScreen({ params, goHome }) {
               <Text style={s.btnNavegarTxt}>💬  CHAT</Text>
             </TouchableOpacity>
           </View>
+          <TouchableOpacity style={s.btnCancelar} onPress={handleCancelar} activeOpacity={0.7} disabled={cancelando}>
+            <Text style={s.btnCancelarTxt}>{cancelando ? 'CANCELANDO...' : 'CANCELAR VIAJE'}</Text>
+          </TouchableOpacity>
         </View>
         {chatModal}
       </View>
@@ -265,7 +323,12 @@ export default function EnServicioScreen({ params, goHome }) {
         {/* Barra superior */}
         <View style={s.topBar}>
           <View style={s.topBarInner}>
-            <Text style={s.topBarLbl}>EN VIAJE</Text>
+            <View style={s.topBarLeft}>
+              <TouchableOpacity onPress={handleVolver} activeOpacity={0.7} style={s.backBtnDark}>
+                <Text style={s.backBtnDarkTxt}>←</Text>
+              </TouchableOpacity>
+              <Text style={s.topBarLbl}>EN VIAJE</Text>
+            </View>
             <Text style={s.topBarTimer}>{formatElapsed(elapsed)}</Text>
           </View>
         </View>
@@ -347,6 +410,9 @@ export default function EnServicioScreen({ params, goHome }) {
               <Text style={s.btnNavegarTxt}>💬  CHAT</Text>
             </TouchableOpacity>
           </View>
+          <TouchableOpacity style={s.btnCancelar} onPress={handleCancelar} activeOpacity={0.7} disabled={cancelando}>
+            <Text style={s.btnCancelarTxt}>{cancelando ? 'CANCELANDO...' : 'CANCELAR VIAJE'}</Text>
+          </TouchableOpacity>
         </View>
         {chatModal}
       </View>
@@ -432,10 +498,28 @@ const s = StyleSheet.create({
   pinEmoji:     { fontSize: 22 },
   pinDestEmoji: { fontSize: 18 },
 
+  /* Flecha flotante (Phase 0) */
+  topRowFloat: {
+    position: 'absolute',
+    top:      52,
+    left:     16,
+    zIndex:   10,
+  },
+  backBtnFloat: {
+    width:           40,
+    height:          40,
+    borderRadius:    20,
+    backgroundColor: C.white,
+    alignItems:      'center',
+    justifyContent:  'center',
+    ...SHADOW,
+  },
+  backBtnFloatTxt: { color: C.black, fontSize: 20, fontWeight: '700' },
+
   /* Status badge */
   statusBadge: {
     position:        'absolute',
-    top:             60,
+    top:             104,
     left:            16,
     right:           16,
     backgroundColor: C.white,
@@ -468,6 +552,16 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(17,17,17,0.85)',
   },
   topBarInner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  topBarLeft:  { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  backBtnDark: {
+    width:           32,
+    height:          32,
+    borderRadius:    16,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems:      'center',
+    justifyContent:  'center',
+  },
+  backBtnDarkTxt: { color: C.white, fontSize: 18, fontWeight: '700' },
   topBarLbl:   { color: C.white,  fontSize: 13, fontWeight: '700', letterSpacing: 1.5 },
   topBarTimer: { color: C.yellow, fontSize: 22, fontWeight: '800' },
 
@@ -572,6 +666,9 @@ const s = StyleSheet.create({
     borderColor:     C.yellow,
   },
   btnNavegarTxt: { color: C.black, fontSize: 13, fontWeight: '700', letterSpacing: 0.3 },
+
+  btnCancelar:    { paddingVertical: 14, alignItems: 'center', marginTop: 4 },
+  btnCancelarTxt: { color: C.red, fontSize: 13, fontWeight: '700', letterSpacing: 0.5 },
 
   /* ── COMPLETADO ── */
   completadoRoot: {
