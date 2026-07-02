@@ -1,19 +1,35 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput,
-  StyleSheet, StatusBar, ActivityIndicator, Alert, Modal,
+  StyleSheet, StatusBar, ActivityIndicator, Alert, Modal, RefreshControl,
 } from 'react-native';
 import { adminApi } from '../api/client';
 import { C, SHADOW } from '../constants/theme';
+import { SERVICES } from '../constants/services';
 
 /* ─── Constantes ──────────────────────────────────── */
 
 const SECCIONES = [
   { key: 'conductores', label: 'Conductores', icon: '👤' },
+  { key: 'directorio',  label: 'Directorio',  icon: '👥' },
   { key: 'recargas',    label: 'Recargas',    icon: '💳' },
   { key: 'alertas',     label: 'Alertas',     icon: '🚨' },
   { key: 'stats',       label: 'Estadísticas',icon: '📊' },
 ];
+
+const ESTADO_BADGE = {
+  activo:    { bg: '#F0FDF4', border: '#BBF7D0', color: '#15803D', label: 'Activo' },
+  pendiente: { bg: '#FFF9E6', border: '#FFD700', color: '#7A5C00', label: 'Pendiente' },
+  suspendido:{ bg: '#FEF2F2', border: '#FECACA', color: '#B91C1C', label: 'Suspendido' },
+  inactivo:  { bg: '#F3F4F6', border: '#E5E7EB', color: '#6B7280', label: 'Inactivo (saldo)' },
+  rechazado: { bg: '#FEF2F2', border: '#FECACA', color: '#B91C1C', label: 'Rechazado' },
+};
+const ESTADO_DEFAULT = { bg: '#F3F4F6', border: '#E5E7EB', color: '#6B7280', label: null };
+
+export function estadoBadgeInfo(estado) {
+  const info = ESTADO_BADGE[estado] || ESTADO_DEFAULT;
+  return { ...info, label: info.label || (estado || '—') };
+}
 
 /* ─── Modal de motivo de rechazo ─────────────────── */
 
@@ -261,6 +277,88 @@ function ConductoresSection({ navigate }) {
           >
             <Text style={s.verDocsBtnTxt}>📄  Revisar documentos</Text>
           </TouchableOpacity>
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
+/* ─── Sección: Directorio de conductores ─────────── */
+
+const GRUPO_SIN_VEHICULO = { id: '__sin_vehiculo', label: 'Sin vehículo registrado', icon: '❓' };
+
+function DirectorioSection({ navigate }) {
+  const [conductores, setConductores] = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [refreshing,  setRefreshing]  = useState(false);
+
+  const cargar = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true); else setLoading(true);
+    try {
+      const { data } = await adminApi.conductoresTodos();
+      setConductores(data.conductores || []);
+    } catch {
+      Alert.alert('Error', 'No se pudo cargar el directorio de conductores.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  if (loading) {
+    return <View style={s.centerWrap}><ActivityIndicator color={C.yellow} size="large" /></View>;
+  }
+
+  const grupos = [...SERVICES, GRUPO_SIN_VEHICULO].map((grupo) => ({
+    ...grupo,
+    conductores: conductores.filter((c) => (c.tipo_vehiculo || GRUPO_SIN_VEHICULO.id) === grupo.id),
+  })).filter((g) => g.conductores.length > 0);
+
+  return (
+    <ScrollView
+      contentContainerStyle={s.listContent}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => cargar(true)} colors={[C.yellow]} />}
+    >
+      {conductores.length === 0 && (
+        <View style={s.emptyWrap}>
+          <Text style={s.emptyIcon}>👥</Text>
+          <Text style={s.emptyTxt}>Aún no hay conductores registrados</Text>
+        </View>
+      )}
+
+      {grupos.map((grupo) => (
+        <View key={grupo.id} style={s.grupoWrap}>
+          <View style={s.grupoHeader}>
+            <Text style={s.grupoIcon}>{grupo.icon}</Text>
+            <Text style={s.grupoLabel}>{grupo.label}</Text>
+            <Text style={s.grupoCount}>{grupo.conductores.length}</Text>
+          </View>
+
+          {grupo.conductores.map((c) => {
+            const badge = estadoBadgeInfo(c.estado_cuenta);
+            return (
+              <TouchableOpacity
+                key={c.id}
+                style={s.dirCard}
+                onPress={() => navigate('ConductorDetalle', { conductorId: c.id, conductorNombre: c.nombre })}
+                activeOpacity={0.8}
+              >
+                <View style={s.conductorAvatar}>
+                  <Text style={s.conductorAvatarTxt}>{(c.nombre || 'C')[0].toUpperCase()}</Text>
+                </View>
+                <View style={s.dirInfo}>
+                  <Text style={s.conductorNombre}>{c.nombre || '—'}</Text>
+                  <Text style={s.conductorTel}>{c.telefono || '—'} · ★ {c.rating ?? '—'}</Text>
+                </View>
+                <View style={[s.estadoBadge, { backgroundColor: badge.bg, borderColor: badge.border }]}>
+                  <Text style={[s.estadoBadgeTxt, { color: badge.color }]}>{badge.label}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
       ))}
     </ScrollView>
@@ -516,6 +614,7 @@ export default function AdminScreen({ navigate, onMenuPress }) {
 
       {/* Contenido */}
       {seccion === 'conductores' && <ConductoresSection navigate={navigate} />}
+      {seccion === 'directorio'  && <DirectorioSection navigate={navigate} />}
       {seccion === 'recargas'    && <RecargasSection />}
       {seccion === 'alertas'     && <AlertasSection />}
       {seccion === 'stats'       && <EstadisticasSection />}
@@ -797,4 +896,30 @@ const s = StyleSheet.create({
     alignItems:      'center',
   },
   motivoConfirmTxt: { color: C.white, fontSize: 14, fontWeight: '700' },
+
+  /* Directorio */
+  grupoWrap:   { marginBottom: 18 },
+  grupoHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10, paddingHorizontal: 2 },
+  grupoIcon:   { fontSize: 16, marginRight: 8 },
+  grupoLabel:  { flex: 1, fontSize: 13, fontWeight: '700', color: C.black, letterSpacing: 0.3 },
+  grupoCount:  { fontSize: 12, fontWeight: '700', color: C.gray },
+
+  dirCard: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    backgroundColor: C.white,
+    borderRadius:    16,
+    padding:         12,
+    marginBottom:    8,
+    ...SHADOW,
+  },
+  dirInfo: { flex: 1, marginLeft: 12, marginRight: 8 },
+
+  estadoBadge: {
+    borderRadius:      10,
+    borderWidth:       1,
+    paddingHorizontal: 10,
+    paddingVertical:   4,
+  },
+  estadoBadgeTxt: { fontSize: 11, fontWeight: '700' },
 });

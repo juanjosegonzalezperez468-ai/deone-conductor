@@ -20,6 +20,7 @@ import CuentaScreen                from './src/screens/CuentaScreen';
 import EnServicioScreen            from './src/screens/EnServicioScreen';
 import AdminScreen                 from './src/screens/AdminScreen';
 import DocumentosAdminScreen       from './src/screens/DocumentosAdminScreen';
+import ConductorDetalleScreen      from './src/screens/ConductorDetalleScreen';
 import CreditoWEWINScreen          from './src/screens/CreditoWEWINScreen';
 import ChatScreen                  from './src/screens/ChatScreen';
 import TerminosScreen              from './src/screens/TerminosScreen';
@@ -149,7 +150,10 @@ export default function App() {
     return <ChatScreen serviceId={screenParams.serviceId} onClose={() => navigate('App')} />;
   }
   if (screen === 'DocumentosAdmin') {
-    return <DocumentosAdminScreen params={screenParams} onBack={() => navigate('App')} />;
+    return <DocumentosAdminScreen params={screenParams} onBack={() => navigate('Admin')} />;
+  }
+  if (screen === 'ConductorDetalle') {
+    return <ConductorDetalleScreen params={screenParams} navigate={navigate} onBack={() => navigate('Admin')} />;
   }
   if (screen === 'CreditoWEWIN') {
     return <CreditoWEWINScreen onBack={() => navigate('App')} />;

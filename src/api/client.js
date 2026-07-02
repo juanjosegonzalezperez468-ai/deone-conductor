@@ -133,6 +133,10 @@ export const chatApi = {
 export const adminApi = {
   conductoresPendientes: ()        => api.get('/admin/conductores/pendientes'),
   conductoresActivos:    ()        => api.get('/admin/conductores/activos'),
+  conductoresTodos:      ()        => api.get('/admin/conductores/todos'),
+  conductorResumen:      (id)      => api.get(`/admin/conductor/${id}/resumen`),
+  suspenderConductor:    (id, motivo, dias) =>
+    api.patch(`/admin/conductor/${id}/suspender`, { motivo, dias }),
   documentosPendientes:  ()        => api.get('/admin/documentos/pendientes'),
   aprobarConductor:      (id)      => api.patch(`/admin/conductor/${id}/aprobar`),
   rechazarConductor:     (id, mot) => api.patch(`/admin/conductor/${id}/rechazar`, { motivo: mot }),
