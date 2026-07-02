@@ -13,6 +13,14 @@ import { C, SHADOW } from '../constants/theme';
 
 const POLL_INTERVAL = 8000;
 
+// FastAPI puede devolver detail como array (errores 422); Alert no renderiza
+// objetos, así que solo usamos detail cuando es texto.
+function mensajeDeError(e, fallback) {
+  const detalle = e?.response?.data?.detail;
+  if (typeof detalle === 'string' && detalle) return detalle;
+  return e?.friendlyMessage || e?.message || fallback;
+}
+
 function haversineKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -119,7 +127,20 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
           setSelected(null);
           Alert.alert('Oferta no aceptada', 'El cliente no aceptó tu contraoferta.');
         }
-      } catch {}
+      } catch (e) {
+        // Errores de red transitorios se reintentan en el próximo poll; si el
+        // backend niega el acceso o la solicitud ya no existe, avisamos.
+        const status = e?.response?.status;
+        if (status === 403 || status === 404) {
+          setPendingOfferId(null);
+          setEsperando(false);
+          setSelected(null);
+          Alert.alert(
+            'Contraoferta',
+            mensajeDeError(e, 'No se pudo consultar el estado de tu contraoferta.'),
+          );
+        }
+      }
     };
     checkOffer();
     const iv = setInterval(checkOffer, 5000);
@@ -186,20 +207,20 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
       cerrarModal();
       navigate('EnServicio', { solicitud: captured, precioAceptado: captured.precio_propuesto });
     } catch (e) {
-      const detalle =
-        e?.response?.data?.detail ||
-        e?.friendlyMessage ||
-        e?.message ||
-        'No se pudo aceptar el viaje.';
-      if (e?.response?.status === 403) setCuentaInactiva(true);
+      const detalle = mensajeDeError(e, 'No se pudo aceptar el viaje.');
+      if (e?.response?.status === 403 && detalle.includes('saldo')) setCuentaInactiva(true);
       Alert.alert('No disponible', detalle);
     }
     setLoadingAceptar(false);
   };
 
   const enviarContraoferta = async () => {
+    if (!selected || loadingContra) return;
     const precio = Number(precioContra);
-    if (precio < 1000 || !selected || loadingContra) return;
+    if (!precio || precio < 1000) {
+      Alert.alert('Precio inválido', 'La contraoferta mínima es de $1.000 COP.');
+      return;
+    }
     setLoadingContra(true);
     try {
       await offersApi.crear({
@@ -212,13 +233,17 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
       setShowContra(false);
       setEsperando(true);
     } catch (e) {
-      const detalle =
-        e?.response?.data?.detail ||
-        e?.friendlyMessage ||
-        e?.message ||
-        'No se pudo enviar la contraoferta.';
-      if (e?.response?.status === 403) setCuentaInactiva(true);
-      Alert.alert('No disponible', detalle);
+      const detalle = mensajeDeError(e, 'No se pudo enviar la contraoferta.');
+      if (detalle.includes('Ya tienes una oferta activa')) {
+        // Nuestra contraoferta anterior sigue vigente: mostrar la espera
+        // en lugar de un error.
+        setPendingOfferId(selected.id);
+        setShowContra(false);
+        setEsperando(true);
+      } else {
+        if (e?.response?.status === 403 && detalle.includes('saldo')) setCuentaInactiva(true);
+        Alert.alert('No disponible', detalle);
+      }
     }
     setLoadingContra(false);
   };
@@ -429,7 +454,7 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
                   ${Number(precioContra).toLocaleString('es-CO')} COP
                 </Text>
               )}
-              {Number(precioContra) > 0 && Number(precioContra) < 1000 && (
+              {Number(precioContra) < 1000 && (
                 <Text style={s.precioErr}>Mínimo $1.000</Text>
               )}
 
@@ -440,6 +465,7 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
                 <TouchableOpacity
                   style={Number(precioContra) >= 1000 && !loadingContra ? s.btnPrimario : s.btnDis}
                   onPress={enviarContraoferta}
+                  disabled={Number(precioContra) < 1000 || loadingContra}
                   activeOpacity={0.85}
                 >
                   {loadingContra
