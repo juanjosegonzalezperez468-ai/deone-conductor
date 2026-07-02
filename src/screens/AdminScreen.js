@@ -66,16 +66,26 @@ function MotivoModal({ visible, titulo, onConfirm, onCancel }) {
 /* ─── Sección: Conductores pendientes ────────────── */
 
 function ConductoresSection({ navigate }) {
-  const [conductores, setConductores] = useState([]);
-  const [loading,     setLoading]     = useState(true);
-  const [procesando,  setProcesando]  = useState(null);
-  const [motivoModal, setMotivoModal] = useState(null);
+  const [conductores,     setConductores]     = useState([]);
+  const [documentosPend,  setDocumentosPend]  = useState([]);
+  const [loading,         setLoading]         = useState(true);
+  const [procesando,      setProcesando]      = useState(null);
+  const [motivoModal,     setMotivoModal]     = useState(null);
 
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await adminApi.conductoresPendientes();
-      setConductores(data.conductores || []);
+      const [pendientesRes, documentosRes] = await Promise.all([
+        adminApi.conductoresPendientes(),
+        adminApi.documentosPendientes(),
+      ]);
+      setConductores(pendientesRes.data.conductores || []);
+      // Solo interesan documentos de conductores YA aprobados (activo) que
+      // subieron una actualización (p. ej. SOAT renovado). Los que están en
+      // registro inicial se revisan arriba; los rechazados no aplican aquí.
+      setDocumentosPend(
+        (documentosRes.data.conductores || []).filter((c) => c.estado_cuenta === 'activo')
+      );
     } catch {
       Alert.alert('Error', 'No se pudo cargar la lista de conductores.');
     } finally {
@@ -138,11 +148,15 @@ function ConductoresSection({ navigate }) {
         />
       )}
 
-      {conductores.length === 0 && (
+      {conductores.length === 0 && documentosPend.length === 0 && (
         <View style={s.emptyWrap}>
           <Text style={s.emptyIcon}>✅</Text>
           <Text style={s.emptyTxt}>Sin conductores pendientes</Text>
         </View>
+      )}
+
+      {conductores.length > 0 && documentosPend.length > 0 && (
+        <Text style={s.alertaSectionLbl}>NUEVOS REGISTROS</Text>
       )}
 
       {conductores.map((c) => (
@@ -204,6 +218,49 @@ function ConductoresSection({ navigate }) {
               }
             </TouchableOpacity>
           </View>
+        </View>
+      ))}
+
+      {documentosPend.length > 0 && (
+        <Text style={s.alertaSectionLbl}>DOCUMENTOS ACTUALIZADOS POR REVISAR</Text>
+      )}
+
+      {documentosPend.map((c) => (
+        <View key={c.id} style={s.conductorCard}>
+          <View style={s.conductorHeader}>
+            <View style={s.conductorAvatar}>
+              <Text style={s.conductorAvatarTxt}>{(c.nombre || 'C')[0].toUpperCase()}</Text>
+            </View>
+            <View style={s.conductorInfo}>
+              <Text style={s.conductorNombre}>{c.nombre || '—'}</Text>
+              <Text style={s.conductorTel}>{c.telefono || '—'}</Text>
+            </View>
+            <View style={s.pendienteBadge}>
+              <Text style={s.pendienteBadgeTxt}>
+                {c.tipos_pendientes?.length || 0} DOC{(c.tipos_pendientes?.length || 0) === 1 ? '' : 'S'}
+              </Text>
+            </View>
+          </View>
+
+          <View style={s.conductorMeta}>
+            <View style={s.metaItem}>
+              <Text style={s.metaLbl}>Vehículo</Text>
+              <Text style={s.metaVal}>{c.tipo_vehiculo || '—'}</Text>
+            </View>
+            <View style={s.metaDivider} />
+            <View style={s.metaItem}>
+              <Text style={s.metaLbl}>Actualizado</Text>
+              <Text style={s.metaVal}>{formatFecha(c.ultima_actualizacion)}</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={s.verDocsBtn}
+            onPress={() => navigate('DocumentosAdmin', { conductorId: c.id, conductorNombre: c.nombre })}
+            activeOpacity={0.8}
+          >
+            <Text style={s.verDocsBtnTxt}>📄  Revisar documentos</Text>
+          </TouchableOpacity>
         </View>
       ))}
     </ScrollView>
