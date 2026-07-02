@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, Modal,
   StyleSheet, StatusBar, ActivityIndicator, Alert, TextInput,
-  Switch,
+  Switch, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import * as Location from 'expo-location';
-import { conductorApi, vehiculoApi, offersApi, locationsApi } from '../api/client';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+import { conductorApi, vehiculoApi, offersApi, locationsApi, servicesApi, billingApi } from '../api/client';
 import { SERVICES } from '../constants/services';
 import { getUserUuid } from '../utils/tokenStorage';
 import { C, SHADOW } from '../constants/theme';
@@ -29,13 +30,20 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
   const [loading,        setLoading]        = useState(true);
   const [tipoServicio,   setTipoServicio]   = useState(null);
   const [location,       setLocation]       = useState(null);
+  const [locationError,  setLocationError]  = useState(false);
   const [selected,       setSelected]       = useState(null);
   const [showContra,     setShowContra]     = useState(false);
   const [precioContra,   setPrecioContra]   = useState('');
   const [loadingAceptar, setLoadingAceptar] = useState(false);
   const [loadingContra,  setLoadingContra]  = useState(false);
+  const [pendingOfferId, setPendingOfferId] = useState(null);
+  const [esperando,      setEsperando]      = useState(false);
+  const [cuentaInactiva, setCuentaInactiva] = useState(false);
+  const [saldoBajo,      setSaldoBajo]      = useState(false);
   const uuidRef     = useRef('');
   const locationRef = useRef(null);
+  const watchSubRef = useRef(null);
+  const modalMapRef = useRef(null);
 
   useEffect(() => { locationRef.current = location; }, [location]);
 
@@ -50,16 +58,32 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
       } catch {}
 
       try {
+        const { data } = await billingApi.saldo(uuid);
+        setCuentaInactiva(data?.estado_cuenta === 'inactivo');
+        setSaldoBajo(!!data?.alerta_saldo_bajo);
+      } catch {}
+
+      try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          setLocation(loc.coords);
-          locationRef.current = loc.coords;
+          watchSubRef.current = await Location.watchPositionAsync(
+            { accuracy: Location.Accuracy.Balanced, timeInterval: 4000, distanceInterval: 15 },
+            (loc) => {
+              setLocation(loc.coords);
+              locationRef.current = loc.coords;
+            },
+          );
+        } else {
+          setLocationError(true);
         }
-      } catch {}
+      } catch {
+        setLocationError(true);
+      }
 
       setLoading(false);
     })();
+
+    return () => { watchSubRef.current?.remove?.(); };
   }, []);
 
   useEffect(() => {
@@ -68,6 +92,39 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
     const iv = setInterval(doPoll, POLL_INTERVAL);
     return () => clearInterval(iv);
   }, [tipoServicio]);
+
+  // Vigila la solicitud mientras el cliente decide sobre nuestra contraoferta,
+  // por si la notificación push no llega (token FCM desactualizado, etc).
+  useEffect(() => {
+    if (!pendingOfferId) return;
+    const startedAt = Date.now();
+    const checkOffer = async () => {
+      if (Date.now() - startedAt > 3 * 60 * 1000) {
+        setPendingOfferId(null);
+        setEsperando(false);
+        setSelected(null);
+        Alert.alert('Oferta vencida', 'El cliente no respondió a tiempo a tu contraoferta.');
+        return;
+      }
+      try {
+        const { data } = await servicesApi.obtener(pendingOfferId);
+        if (data?.estado === 'confirmado' && data?.conductor_id === uuidRef.current) {
+          setPendingOfferId(null);
+          setEsperando(false);
+          setSelected(null);
+          navigate('EnServicio', { solicitud: data, precioAceptado: data.precio_final || 0 });
+        } else if (data?.estado && data.estado !== 'negociando') {
+          setPendingOfferId(null);
+          setEsperando(false);
+          setSelected(null);
+          Alert.alert('Oferta no aceptada', 'El cliente no aceptó tu contraoferta.');
+        }
+      } catch {}
+    };
+    checkOffer();
+    const iv = setInterval(checkOffer, 5000);
+    return () => clearInterval(iv);
+  }, [pendingOfferId]);
 
   const doPoll = async () => {
     const loc = locationRef.current;
@@ -97,13 +154,22 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
   const abrirDetalle = (sol) => {
     setSelected(sol);
     setShowContra(false);
+    setEsperando(false);
     setPrecioContra('');
   };
 
   const cerrarModal = () => {
     setSelected(null);
     setShowContra(false);
+    setEsperando(false);
     setPrecioContra('');
+  };
+
+  // El conductor decide seguir viendo otras carreras mientras el cliente
+  // responde a la contraoferta; la oferta sigue activa (pendingOfferId).
+  const seguirViendoCarreras = () => {
+    setSelected(null);
+    setEsperando(false);
   };
 
   const aceptarViaje = async () => {
@@ -119,8 +185,14 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
       const captured = selected;
       cerrarModal();
       navigate('EnServicio', { solicitud: captured, precioAceptado: captured.precio_propuesto });
-    } catch {
-      Alert.alert('Error', 'No se pudo aceptar el viaje. Intenta de nuevo.');
+    } catch (e) {
+      const detalle =
+        e?.response?.data?.detail ||
+        e?.friendlyMessage ||
+        e?.message ||
+        'No se pudo aceptar el viaje.';
+      if (e?.response?.status === 403) setCuentaInactiva(true);
+      Alert.alert('No disponible', detalle);
     }
     setLoadingAceptar(false);
   };
@@ -136,9 +208,17 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
         precio_ofrecido: precio,
         tipo:            'contraoferta',
       });
-      cerrarModal();
-    } catch {
-      Alert.alert('Error', 'No se pudo enviar la contraoferta.');
+      setPendingOfferId(selected.id);
+      setShowContra(false);
+      setEsperando(true);
+    } catch (e) {
+      const detalle =
+        e?.response?.data?.detail ||
+        e?.friendlyMessage ||
+        e?.message ||
+        'No se pudo enviar la contraoferta.';
+      if (e?.response?.status === 403) setCuentaInactiva(true);
+      Alert.alert('No disponible', detalle);
     }
     setLoadingContra(false);
   };
@@ -153,6 +233,19 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
         selected.origen_lng  || -75.5138,
       ).toFixed(1)
     : '—';
+
+  const fitModalMap = () => {
+    if (!modalMapRef.current || !selected || !location) return;
+    modalMapRef.current.fitToCoordinates(
+      [
+        { latitude: location.latitude, longitude: location.longitude },
+        { latitude: selected.origen_lat || 5.0703, longitude: selected.origen_lng || -75.5138 },
+      ],
+      { edgePadding: { top: 50, right: 50, bottom: 50, left: 50 }, animated: true },
+    );
+  };
+
+  useEffect(() => { fitModalMap(); }, [selected, location]);
 
   return (
     <View style={s.root}>
@@ -181,6 +274,30 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
           />
         </View>
       </View>
+
+      {cuentaInactiva && (
+        <View style={s.saldoWarn}>
+          <Text style={s.saldoWarnTxt}>⚠️ Cuenta pausada por saldo insuficiente. Recarga para aceptar carreras.</Text>
+        </View>
+      )}
+      {!cuentaInactiva && saldoBajo && (
+        <View style={s.saldoAlert}>
+          <Text style={s.saldoAlertTxt}>💰 Saldo bajo. Recarga pronto para no perder acceso.</Text>
+        </View>
+      )}
+
+      {locationError && (
+        <View style={s.gpsWarn}>
+          <Text style={s.gpsWarnTxt}>📍 Activa el GPS para ver la distancia a las solicitudes</Text>
+        </View>
+      )}
+
+      {pendingOfferId && (
+        <View style={s.offerWaitBanner}>
+          <ActivityIndicator size="small" color={C.black} />
+          <Text style={s.offerWaitTxt}>Esperando respuesta del cliente a tu contraoferta…</Text>
+        </View>
+      )}
 
       {/* ── CONTENIDO ── */}
       {loading ? (
@@ -232,8 +349,54 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
 
       {/* ── MODAL DETALLE ── */}
       <Modal visible={!!selected} transparent animationType="slide">
+        <KeyboardAvoidingView
+          style={s.kav}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <View style={s.overlay}>
-          {showContra ? (
+          {esperando ? (
+            <View style={s.modalCard}>
+              <View style={s.modalTop}>
+                <View style={s.badge}>
+                  <Text style={s.badgeTxt}>💰  CONTRAOFERTA ENVIADA</Text>
+                </View>
+              </View>
+
+              <View style={s.esperandoBox}>
+                <ActivityIndicator size="large" color={C.yellow} />
+                <Text style={s.esperandoTitle}>Esperando respuesta del cliente</Text>
+                <Text style={s.esperandoSub}>
+                  Le propusiste ${Number(precioContra).toLocaleString('es-CO')} COP por este viaje.
+                </Text>
+              </View>
+
+              <View style={s.routeBox}>
+                <View style={s.routeItem}>
+                  <View style={s.dotA} />
+                  <View style={s.routeTexts}>
+                    <Text style={s.routeLabel}>Origen</Text>
+                    <Text style={s.routeVal} numberOfLines={2}>
+                      {selected?.origen_direccion || '—'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={s.routeSep} />
+                <View style={s.routeItem}>
+                  <View style={s.dotB} />
+                  <View style={s.routeTexts}>
+                    <Text style={s.routeLabel}>Destino</Text>
+                    <Text style={s.routeVal} numberOfLines={2}>
+                      {selected?.destino_direccion || '—'}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <TouchableOpacity style={s.btnSecundario} onPress={seguirViendoCarreras} activeOpacity={0.8}>
+                <Text style={s.btnSecundarioTxt}>SEGUIR VIENDO CARRERAS</Text>
+              </TouchableOpacity>
+            </View>
+          ) : showContra ? (
             <View style={s.modalCard}>
               <View style={s.modalTop}>
                 <View style={s.badge}>
@@ -302,6 +465,47 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
                 </TouchableOpacity>
               </View>
 
+              {location ? (
+                <View style={s.mapBox}>
+                  <MapView
+                    ref={modalMapRef}
+                    provider={PROVIDER_GOOGLE}
+                    style={s.mapView}
+                    onMapReady={fitModalMap}
+                    showsMyLocationButton={false}
+                    showsCompass={false}
+                    toolbarEnabled={false}
+                    rotateEnabled={false}
+                    pitchEnabled={false}
+                    liteMode={false}
+                  >
+                    <Marker coordinate={{ latitude: location.latitude, longitude: location.longitude }} anchor={{ x: 0.5, y: 0.5 }}>
+                      <View style={s.pinDriver}><Text style={s.pinDriverEmoji}>🏍️</Text></View>
+                    </Marker>
+                    <Marker
+                      coordinate={{
+                        latitude: selected?.origen_lat || 5.0703,
+                        longitude: selected?.origen_lng || -75.5138,
+                      }}
+                      anchor={{ x: 0.5, y: 1 }}
+                    >
+                      <View style={s.pinYellow}><Text style={s.pinEmoji}>📍</Text></View>
+                    </Marker>
+                  </MapView>
+                  <View style={s.mapDistBadge}>
+                    <Text style={s.mapDistTxt}>{selDist} km de ti</Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={s.mapBoxEmpty}>
+                  <Text style={s.mapBoxEmptyTxt}>
+                    {locationError
+                      ? 'Activa el GPS para ver el mapa y la distancia'
+                      : 'Obteniendo tu ubicación…'}
+                  </Text>
+                </View>
+              )}
+
               <View style={s.routeBox}>
                 <View style={s.routeItem}>
                   <View style={s.dotA} />
@@ -360,6 +564,7 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
             </View>
           )}
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
     </View>
@@ -427,6 +632,55 @@ const s = StyleSheet.create({
   activoLbl:   { color: C.green, fontSize: 10, fontWeight: '700', letterSpacing: 0.8 },
   inactivoLbl: { color: C.gray,  fontSize: 10, fontWeight: '600', letterSpacing: 0.8 },
 
+  /* Avisos de saldo */
+  saldoWarn: {
+    marginHorizontal:  16,
+    marginBottom:      10,
+    backgroundColor:   '#FFE5E5',
+    borderRadius:      12,
+    paddingHorizontal: 12,
+    paddingVertical:   10,
+    borderWidth:       1,
+    borderColor:       '#FF4444',
+  },
+  saldoWarnTxt: { color: '#CC0000', fontSize: 13, fontWeight: '700' },
+  saldoAlert: {
+    marginHorizontal:  16,
+    marginBottom:      10,
+    backgroundColor:   '#FFF4D6',
+    borderRadius:      12,
+    paddingHorizontal: 12,
+    paddingVertical:   8,
+    borderWidth:       1,
+    borderColor:       '#F5A623',
+  },
+  saldoAlertTxt: { color: '#8B6000', fontSize: 12, fontWeight: '600' },
+
+  /* Aviso GPS */
+  gpsWarn: {
+    marginHorizontal: 16,
+    marginBottom:     10,
+    backgroundColor:  '#FFF4D6',
+    borderRadius:     12,
+    paddingHorizontal: 12,
+    paddingVertical:   8,
+  },
+  gpsWarnTxt: { color: C.black, fontSize: 12, fontWeight: '600' },
+
+  offerWaitBanner: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    marginHorizontal:  16,
+    marginBottom:      10,
+    backgroundColor:   C.bg,
+    borderRadius:      12,
+    paddingHorizontal: 12,
+    paddingVertical:   10,
+    borderWidth:        1,
+    borderColor:        C.border,
+  },
+  offerWaitTxt: { color: C.black, fontSize: 12, fontWeight: '600', marginLeft: 8, flex: 1 },
+
   /* Badge */
   badgeRow:  { paddingHorizontal: 4, paddingBottom: 10 },
   badge: {
@@ -447,6 +701,7 @@ const s = StyleSheet.create({
   emptySub:   { color: C.gray,  fontSize: 13, textAlign: 'center', lineHeight: 20 },
 
   /* Modal */
+  kav: { flex: 1 },
   overlay: {
     flex:            1,
     backgroundColor: 'rgba(0,0,0,0.55)',
@@ -476,6 +731,52 @@ const s = StyleSheet.create({
   srvName:  { color: C.black, fontSize: 16, fontWeight: '700' },
   closeBtn: { padding: 8 },
   closeTxt: { color: C.gray, fontSize: 18, fontWeight: '700' },
+
+  /* Mapa modal */
+  mapBox: {
+    height:       170,
+    borderRadius: 16,
+    overflow:     'hidden',
+    marginBottom: 16,
+    position:     'relative',
+  },
+  mapView: { ...StyleSheet.absoluteFillObject },
+  mapBoxEmpty: {
+    height:          170,
+    borderRadius:    16,
+    backgroundColor: C.bg,
+    alignItems:      'center',
+    justifyContent:  'center',
+    marginBottom:    16,
+    paddingHorizontal: 20,
+  },
+  mapBoxEmptyTxt: { color: C.gray, fontSize: 12, fontWeight: '600', textAlign: 'center' },
+  mapDistBadge: {
+    position:         'absolute',
+    bottom:           10,
+    alignSelf:        'center',
+    backgroundColor:  C.white,
+    borderRadius:     14,
+    paddingHorizontal: 12,
+    paddingVertical:   6,
+    ...SHADOW,
+  },
+  mapDistTxt: { color: C.black, fontSize: 12, fontWeight: '700' },
+  pinDriver: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: C.black,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: C.white,
+    ...SHADOW,
+  },
+  pinDriverEmoji: { fontSize: 18 },
+  pinYellow: {
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: C.yellow,
+    alignItems: 'center', justifyContent: 'center',
+    ...SHADOW,
+  },
+  pinEmoji: { fontSize: 20 },
 
   routeBox: {
     backgroundColor:   C.bg,
@@ -536,6 +837,11 @@ const s = StyleSheet.create({
   precioCOP:   { color: C.gray, fontSize: 14, fontWeight: '600', marginLeft: 4 },
   precioFmt:   { color: C.gray, fontSize: 13, textAlign: 'center', marginBottom: 4 },
   precioErr:   { color: C.red,  fontSize: 12, textAlign: 'center', marginBottom: 8 },
+
+  /* Esperando respuesta */
+  esperandoBox:   { alignItems: 'center', paddingVertical: 20 },
+  esperandoTitle: { color: C.black, fontSize: 16, fontWeight: '800', marginTop: 14, textAlign: 'center' },
+  esperandoSub:   { color: C.gray,  fontSize: 13, marginTop: 6, textAlign: 'center', paddingHorizontal: 10 },
 
 });
 
