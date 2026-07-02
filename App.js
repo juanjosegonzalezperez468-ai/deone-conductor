@@ -22,6 +22,7 @@ import AdminScreen                 from './src/screens/AdminScreen';
 import DocumentosAdminScreen       from './src/screens/DocumentosAdminScreen';
 import CreditoWEWINScreen          from './src/screens/CreditoWEWINScreen';
 import ChatScreen                  from './src/screens/ChatScreen';
+import TerminosScreen              from './src/screens/TerminosScreen';
 
 const ADMIN_PHONE = '+573239420671';
 const DRAWER_W    = Dimensions.get('window').width * 0.82;
@@ -137,6 +138,7 @@ export default function App() {
   if (screen === 'Splash')            return <SplashScreen navigate={navigate} />;
   if (screen === 'Login')             return <LoginScreen navigate={navigate} />;
   if (screen === 'OTP')               return <OTPScreen navigate={navigate} params={screenParams} />;
+  if (screen === 'Terminos')          return <TerminosScreen navigate={navigate} />;
   if (screen === 'RegistroConductor') return <RegistroConductorScreen navigate={navigate} params={screenParams} />;
   if (screen === 'PantallaPendiente') return <PantallaPendienteScreen navigate={navigate} />;
 

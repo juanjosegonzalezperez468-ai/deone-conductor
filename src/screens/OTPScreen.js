@@ -65,7 +65,11 @@ export default function OTPScreen({ navigate, params }) {
               await fcmApi.registrar(data.usuario.id, pushToken.data);
             }
           } catch {}
-          navigate('App');
+          if (!data.usuario.terminos_aceptados) {
+            navigate('Terminos');
+          } else {
+            navigate('App');
+          }
         } catch {
           navigate('RegistroConductor', { user: result.user, phone });
         }

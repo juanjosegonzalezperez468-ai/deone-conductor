@@ -96,7 +96,8 @@ export const billingApi = {
 };
 
 export const authApi = {
-  verificarOtp: (data) => api.post('/auth/verificar-otp', data),
+  verificarOtp:    (data) => api.post('/auth/verificar-otp', data),
+  aceptarTerminos: (uid)  => api.patch(`/auth/perfil/${uid}/terminos`),
 };
 
 export const servicesApi = {

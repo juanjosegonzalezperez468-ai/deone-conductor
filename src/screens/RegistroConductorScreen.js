@@ -47,6 +47,7 @@ export default function RegistroConductorScreen({ navigate, params }) {
           await fcmApi.registrar(data.usuario.id, pushToken.data);
         }
       } catch {}
+      try { await authApi.aceptarTerminos(data.usuario.id); } catch {}
       setShowWelcome(true);
     } catch (err) {
       const errorMsg = err?.response?.data?.detail ||

@@ -46,6 +46,10 @@ export default function SplashScreen({ navigate }) {
         );
         await storeBackendToken(data.token);
         await storeUserUuid(data.usuario.id);
+        if (!data.usuario.terminos_aceptados) {
+          navigate('Terminos');
+          return;
+        }
         navigate('App');
       } catch {
         navigate('Login');
