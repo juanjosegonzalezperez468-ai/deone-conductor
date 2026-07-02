@@ -209,7 +209,7 @@ export default function EnServicioScreen({ params, goHome }) {
     Linking.openURL(gmaps).catch(() => Linking.openURL(`geo:${lat},${lng}`));
   };
 
-  const comision  = Math.round(precioAceptado * 0.095);
+  const comision  = Math.round(precioAceptado * 0.085);
   const totalNeto = precioAceptado - comision;
 
   const chatModal = (
@@ -444,7 +444,7 @@ export default function EnServicioScreen({ params, goHome }) {
         </View>
         <View style={s.totalesSep} />
         <View style={s.totalesRow}>
-          <Text style={s.totalesLblRed}>Comisión Deone (9.5%)</Text>
+          <Text style={s.totalesLblRed}>Comisión Deone (8.5%)</Text>
           <Text style={s.totalesValRed}>-${comision.toLocaleString('es-CO')}</Text>
         </View>
         <View style={s.totalesSep} />

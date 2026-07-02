@@ -6,7 +6,7 @@ import {
 import auth                        from '@react-native-firebase/auth';
 import * as Notifications          from 'expo-notifications';
 import * as Device                 from 'expo-device';
-import { fcmApi, conductorApi }    from './src/api/client';
+import { fcmApi, conductorApi, servicesApi } from './src/api/client';
 import { getUserUuid }             from './src/utils/tokenStorage';
 import SplashScreen                from './src/screens/SplashScreen';
 import LoginScreen                 from './src/screens/LoginScreen';
@@ -95,12 +95,24 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    Notifications.getLastNotificationResponseAsync().then((response) => {
-      if (response) setScreen('App');
-    });
-    const sub = Notifications.addNotificationResponseReceivedListener(() => {
+    const handleResponse = async (response) => {
+      const data = response?.notification?.request?.content?.data;
+      if (data?.screen === 'EnServicio' && data?.service_id) {
+        try {
+          const { data: solicitud } = await servicesApi.obtener(data.service_id);
+          if (solicitud?.estado === 'confirmado') {
+            navigate('EnServicio', { solicitud, precioAceptado: solicitud.precio_final || 0 });
+            return;
+          }
+        } catch {}
+      }
       setScreen('App');
+    };
+
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) handleResponse(response);
     });
+    const sub = Notifications.addNotificationResponseReceivedListener(handleResponse);
     return () => sub.remove();
   }, []);
 

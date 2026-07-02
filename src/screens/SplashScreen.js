@@ -7,7 +7,7 @@ import { getBackendToken, storeBackendToken, getPhone, getUserUuid, storeUserUui
 import { servicesApi } from '../api/client';
 import { C } from '../constants/theme';
 
-const ACTIVE_STATES = ['en_camino', 'en_servicio'];
+const ACTIVE_STATES = ['confirmado', 'en_camino', 'en_servicio'];
 
 export default function SplashScreen({ navigate }) {
   useEffect(() => {

@@ -37,7 +37,7 @@ const FAQ = [
   },
   {
     q: '¿Cómo funciona la comisión?',
-    a: 'Descontamos el 9.5% por viaje. Con más de 20 viajes en el mes, la comisión baja al 7%.',
+    a: 'Descontamos el 8.5% por viaje. Con más de 20 viajes en el mes, la comisión baja al 7%.',
   },
   {
     q: '¿Cómo recargo mi saldo?',
@@ -589,7 +589,7 @@ export default function CuentaScreen({ navigate, onMenuPress }) {
     'Mi vehículo':    vehiculoSub,
     'Ayuda':          'Preguntas frecuentes',
     'Soporte':        'WhatsApp y llamadas',
-    'Comisiones':     '9.5% estándar · 7% con +20 viajes',
+    'Comisiones':     '8.5% estándar · 7% con +20 viajes',
   };
 
   return (
