@@ -158,7 +158,9 @@ export default function OTPScreen({ navigate, params }) {
     if (resending) return;
     setResend(true);
     try {
-      const nueva = await auth().signInWithPhoneNumber(phone);
+      // forceResend: sin esto Android puede reutilizar la sesión de
+      // verificación anterior y el código del SMS nuevo nunca coincide
+      const nueva = await auth().signInWithPhoneNumber(phone, true);
       setConfirmation(nueva);
       setDigits(['', '', '', '', '', '']);
       Alert.alert('Código reenviado', `Enviamos un nuevo código a ${phone}`);
