@@ -9,11 +9,28 @@ import { authApi, fcmApi } from '../api/client';
 import { storeBackendToken, storePhone, storeUserUuid } from '../utils/tokenStorage';
 import { C } from '../constants/theme';
 
+function mensajeErrorOtp(e) {
+  switch (e?.code) {
+    case 'auth/invalid-verification-code':
+      return ['Código incorrecto', 'El código no coincide. Revisa los 6 dígitos e intenta de nuevo.'];
+    case 'auth/code-expired':
+    case 'auth/session-expired':
+      return ['Código vencido', 'Este código ya expiró. Toca "Reenviar código" para recibir uno nuevo.'];
+    case 'auth/too-many-requests':
+      return ['Demasiados intentos', 'Espera unos minutos antes de volver a intentar.'];
+    case 'auth/network-request-failed':
+      return ['Sin conexión', 'Revisa tu conexión a internet e intenta de nuevo.'];
+    default:
+      return ['Código incorrecto', 'El código ingresado no es válido. Intenta de nuevo.'];
+  }
+}
+
 export default function OTPScreen({ navigate, params }) {
-  const { confirmation, phone } = params;
-  const [digits,    setDigits]  = useState(['', '', '', '', '', '']);
-  const [loading,   setLoading] = useState(false);
-  const [resending, setResend]  = useState(false);
+  const { phone } = params;
+  const [digits,       setDigits]       = useState(['', '', '', '', '', '']);
+  const [loading,      setLoading]      = useState(false);
+  const [resending,    setResend]       = useState(false);
+  const [confirmation, setConfirmation] = useState(params.confirmation);
   const inputs = useRef([]);
 
   const code = digits.join('');
@@ -74,8 +91,8 @@ export default function OTPScreen({ navigate, params }) {
           navigate('RegistroConductor', { user: result.user, phone });
         }
       }
-    } catch {
-      Alert.alert('Código incorrecto', 'El código ingresado no es válido. Intenta de nuevo.');
+    } catch (e) {
+      Alert.alert(...mensajeErrorOtp(e));
     } finally {
       setLoading(false);
     }
@@ -85,7 +102,9 @@ export default function OTPScreen({ navigate, params }) {
     if (resending) return;
     setResend(true);
     try {
-      await auth().signInWithPhoneNumber(phone);
+      const nueva = await auth().signInWithPhoneNumber(phone);
+      setConfirmation(nueva);
+      setDigits(['', '', '', '', '', '']);
       Alert.alert('Código reenviado', `Enviamos un nuevo código a ${phone}`);
     } catch {
       Alert.alert('Error', 'No pudimos reenviar el código. Intenta más tarde.');
