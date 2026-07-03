@@ -19,6 +19,7 @@ const DOCUMENTOS_DEF = [
   { tipo: 'cedula_reverso', label: 'Cédula – Reverso',       icon: '🪪' },
   { tipo: 'licencia',       label: 'Licencia de conducción', icon: '📋' },
   { tipo: 'soat',           label: 'SOAT vigente',           icon: '🛡️' },
+  { tipo: 'tarjeta_propiedad', label: 'Tarjeta de propiedad', icon: '📑' },
   { tipo: 'foto_vehiculo',  label: 'Foto del vehículo',      icon: '🚗' },
 ];
 

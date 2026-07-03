@@ -12,6 +12,7 @@ const ETIQUETAS = {
   cedula_reverso: 'Cédula – Reverso',
   licencia:       'Licencia de conducción',
   soat:           'SOAT vigente',
+  tarjeta_propiedad: 'Tarjeta de propiedad',
   foto_vehiculo:  'Foto del vehículo',
 };
 
@@ -21,6 +22,7 @@ const ICONOS = {
   cedula_reverso: '🪪',
   licencia:       '📋',
   soat:           '🛡️',
+  tarjeta_propiedad: '📑',
   foto_vehiculo:  '🚗',
 };
 
