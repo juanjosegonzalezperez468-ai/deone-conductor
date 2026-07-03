@@ -586,7 +586,7 @@ export default function AdminScreen({ navigate, onMenuPress }) {
         </TouchableOpacity>
         <View style={s.headerLeft}>
           <Text style={s.headerTitle}>Panel Admin</Text>
-          <Text style={s.headerSub}>Deone — Manizales</Text>
+          <Text style={s.headerSub}>Deone</Text>
         </View>
         <View style={s.shieldBadge}>
           <Text style={s.shieldIcon}>🛡️</Text>

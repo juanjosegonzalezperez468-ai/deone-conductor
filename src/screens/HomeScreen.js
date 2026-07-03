@@ -18,6 +18,7 @@ export default function HomeScreen({ navigate }) {
   const [disponible,    setDisponible]    = useState(false);
   const [tipoServicio,  setTipoServicio]  = useState(null);
   const [location,      setLocation]      = useState(null);
+  const [ciudad,        setCiudad]        = useState('');
   const [loadingToggle, setLoadingToggle] = useState(false);
   const [saldo,         setSaldo]         = useState(null);
   const [viajesHoy,     setViajesHoy]     = useState(0);
@@ -38,6 +39,13 @@ export default function HomeScreen({ navigate }) {
       latitudeDelta:  0.012,
       longitudeDelta: 0.012,
     }, 800);
+  }, [location]);
+
+  useEffect(() => {
+    if (!location) return;
+    Location.reverseGeocodeAsync(location)
+      .then(([place]) => setCiudad(place?.city || place?.subregion || ''))
+      .catch(() => {});
   }, [location]);
 
   useEffect(() => {
@@ -147,7 +155,7 @@ export default function HomeScreen({ navigate }) {
         <Image source={require('../../assets/logo.png')} style={s.logo} resizeMode="contain" />
         <View style={s.headerRight}>
           <Text style={s.hola}>Hola {nombre || 'Conductor'} 👋</Text>
-          <Text style={s.ciudad}>Manizales 📍</Text>
+          {!!ciudad && <Text style={s.ciudad}>{ciudad} 📍</Text>}
         </View>
       </View>
 

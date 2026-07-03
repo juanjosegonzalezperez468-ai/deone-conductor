@@ -159,9 +159,13 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
   };
 
   const toggleDisponible = async (val) => {
+    const loc = locationRef.current;
+    if (val && !loc) {
+      Alert.alert('GPS requerido', 'Activa el GPS para conectarte y recibir solicitudes.');
+      return;
+    }
     onDisponibleChange(val);
     try {
-      const loc = locationRef.current;
       await locationsApi.actualizar({
         conductor_id:      uuidRef.current,
         lat:               loc?.latitude  || 5.0703,

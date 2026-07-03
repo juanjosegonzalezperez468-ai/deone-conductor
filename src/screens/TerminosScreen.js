@@ -63,8 +63,9 @@ export default function TerminosScreen({ navigate }) {
 
         <Text style={s.parrafo}>
           DEONE es una plataforma tecnológica de intermediación que conecta conductores
-          independientes con usuarios que solicitan servicios de transporte en Manizales,
-          Colombia. Al registrarte como conductor aceptas los siguientes términos.
+          independientes con usuarios que solicitan servicios de transporte en las ciudades
+          de Colombia donde DEONE opera. Al registrarte como conductor aceptas los siguientes
+          términos.
         </Text>
 
         <Text style={s.titulo2}>1. DATOS QUE RECOLECTAMOS</Text>
