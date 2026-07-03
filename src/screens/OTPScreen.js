@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   ScrollView, StyleSheet, StatusBar, ActivityIndicator, Alert,
@@ -32,9 +32,87 @@ export default function OTPScreen({ navigate, params }) {
   const [resending,    setResend]       = useState(false);
   const [confirmation, setConfirmation] = useState(params.confirmation);
   const inputs = useRef([]);
+  const sesionProcesada = useRef(false);
 
   const code = digits.join('');
   const ready = code.length === 6;
+
+  const aMs = (v) => {
+    if (typeof v === 'number') return v;
+    const t = Date.parse(v || '');
+    return Number.isNaN(t) ? null : t;
+  };
+
+  // Sin metadata confiable se asume nuevo: un conductor existente que pase
+  // por RegistroConductor es inofensivo (el backend ignora los datos si el
+  // usuario ya existe), lo contrario crearía la cuenta sin sus datos reales.
+  const esUsuarioNuevo = (user) => {
+    const creado = aMs(user.metadata?.creationTime);
+    const ultimo = aMs(user.metadata?.lastSignInTime);
+    if (creado == null || ultimo == null) return true;
+    return ultimo - creado < 2 * 60 * 1000;
+  };
+
+  const continuarSesion = async (user, esNuevo) => {
+    if (sesionProcesada.current) return;
+    sesionProcesada.current = true;
+    setLoading(true);
+    try {
+      await storePhone(phone);
+    } catch {
+      // Falla de almacenamiento/red: liberar el guard para que pueda reintentar
+      sesionProcesada.current = false;
+      setLoading(false);
+      Alert.alert('Sin conexión', 'No se pudo completar el inicio de sesión. Revisa tu internet e intenta de nuevo.');
+      return;
+    }
+    try {
+      if (esNuevo ?? esUsuarioNuevo(user)) {
+        navigate('RegistroConductor', { user, phone });
+        return;
+      }
+      try {
+        const idToken = await user.getIdToken();
+        const { data } = await authApi.verificarOtp({
+          telefono: phone,
+          token:    idToken,
+          tipo:     'conductor',
+          nombre:   'conductor',
+        });
+        await storeBackendToken(data.token);
+        await storeUserUuid(data.usuario.id);
+        try {
+          const { status } = await Notifications.requestPermissionsAsync();
+          if (status === 'granted') {
+            const pushToken = await Notifications.getDevicePushTokenAsync();
+            await fcmApi.registrar(data.usuario.id, pushToken.data);
+          }
+        } catch {}
+        if (!data.usuario.terminos_aceptados) {
+          navigate('Terminos');
+        } else {
+          navigate('App');
+        }
+      } catch {
+        navigate('RegistroConductor', { user, phone });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // En Android, Google Play Services puede leer el SMS y Firebase inicia
+  // sesión solo (verificación automática), consumiendo la sesión: el código
+  // tecleado a mano siempre fallaría. Al detectar la sesión se continúa
+  // el flujo sin exigir el código.
+  useEffect(() => {
+    const unsubscribe = auth().onAuthStateChanged((user) => {
+      if (user && user.phoneNumber === phone) {
+        continuarSesion(user);
+      }
+    });
+    return unsubscribe;
+  }, []);
 
   const handleChange = (text, index) => {
     const char = text.replace(/\D/g, '').slice(-1);
@@ -60,38 +138,16 @@ export default function OTPScreen({ navigate, params }) {
     setLoading(true);
     try {
       const result = await confirmation.confirm(code);
-      const isNew = result.additionalUserInfo?.isNewUser ?? false;
-      await storePhone(phone);
-      if (isNew) {
-        navigate('RegistroConductor', { user: result.user, phone });
-      } else {
-        try {
-          const idToken = await result.user.getIdToken();
-          const { data } = await authApi.verificarOtp({
-            telefono: phone,
-            token:    idToken,
-            tipo:     'conductor',
-            nombre:   'conductor',
-          });
-          await storeBackendToken(data.token);
-          await storeUserUuid(data.usuario.id);
-          try {
-            const { status } = await Notifications.requestPermissionsAsync();
-            if (status === 'granted') {
-              const pushToken = await Notifications.getDevicePushTokenAsync();
-              await fcmApi.registrar(data.usuario.id, pushToken.data);
-            }
-          } catch {}
-          if (!data.usuario.terminos_aceptados) {
-            navigate('Terminos');
-          } else {
-            navigate('App');
-          }
-        } catch {
-          navigate('RegistroConductor', { user: result.user, phone });
-        }
-      }
+      await continuarSesion(result.user, result.additionalUserInfo?.isNewUser ?? false);
     } catch (e) {
+      // Si la verificación automática ya inició sesión, confirm() falla
+      // aunque el código sea correcto: la sesión ya se consumió. Se
+      // continúa con el usuario autenticado en vez de mostrar error.
+      const user = auth().currentUser;
+      if (user && user.phoneNumber === phone) {
+        await continuarSesion(user);
+        return;
+      }
       Alert.alert(...mensajeErrorOtp(e));
     } finally {
       setLoading(false);
