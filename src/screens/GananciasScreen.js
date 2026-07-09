@@ -101,8 +101,18 @@ export default function GananciasScreen({ navigate, onMenuPress }) {
         'Tu solicitud de recarga fue recibida. El equipo Deone la verificará y activará tu saldo en minutos.',
         [{ text: 'OK' }],
       );
-    } catch {
-      Alert.alert('Error', 'No se pudo enviar la solicitud. Intenta de nuevo.');
+    } catch (err) {
+      if (err?.response?.status === 409) {
+        cerrarModalRecarga();
+        Alert.alert(
+          'Solicitud ya enviada',
+          err?.response?.data?.detail ||
+            'Ya tienes una solicitud de recarga pendiente. Espera a que sea aprobada antes de enviar otra.',
+        );
+      } else {
+        const detail = err?.response?.data?.detail;
+        Alert.alert('Error', typeof detail === 'string' ? detail : 'No se pudo enviar la solicitud. Intenta de nuevo.');
+      }
     } finally {
       setEnviandoRecarga(false);
     }
