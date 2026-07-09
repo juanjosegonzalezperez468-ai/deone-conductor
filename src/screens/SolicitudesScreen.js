@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, Modal,
   StyleSheet, StatusBar, ActivityIndicator, Alert, TextInput,
-  Switch, KeyboardAvoidingView, Platform,
+  Switch, KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
 import * as Location from 'expo-location';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -536,6 +536,8 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
                 </View>
               )}
 
+              <ClienteInfo info={selected?.cliente_info} />
+
               <View style={s.routeBox}>
                 <View style={s.routeItem}>
                   <View style={s.dotA} />
@@ -601,6 +603,76 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
   );
 }
 
+/* Perfil de confianza del cliente: el conductor lo ve antes de aceptar
+   para poder distinguir "cliente nuevo sin historial" de "cliente con
+   viajes encima" (anti-fraude, especialmente en domicilios). */
+function ClienteInfo({ info }) {
+  if (!info) return null;
+  const viajes  = info.viajes_completados || 0;
+  const esNuevo = viajes === 0;
+  const antiguedad =
+    info.antiguedad_dias == null ? null
+    : info.antiguedad_dias < 30  ? `${info.antiguedad_dias} día${info.antiguedad_dias === 1 ? '' : 's'} en Deone`
+    : `${Math.floor(info.antiguedad_dias / 30)} mes${Math.floor(info.antiguedad_dias / 30) === 1 ? '' : 'es'} en Deone`;
+
+  return (
+    <View style={ci.row}>
+      {info.foto_url ? (
+        <Image source={{ uri: info.foto_url }} style={ci.foto} />
+      ) : (
+        <View style={ci.fotoPlaceholder}>
+          <Text style={ci.fotoInicial}>{(info.nombre || 'C')[0].toUpperCase()}</Text>
+        </View>
+      )}
+      <View style={ci.textos}>
+        <Text style={ci.nombre} numberOfLines={1}>{info.nombre || 'Cliente'}</Text>
+        <Text style={ci.detalle}>
+          {viajes} viaje{viajes === 1 ? '' : 's'}{antiguedad ? ` · ${antiguedad}` : ''}
+        </Text>
+      </View>
+      {info.identidad_verificada ? (
+        <View style={ci.badgeVerificado}>
+          <Text style={ci.badgeVerificadoTxt}>✓ Verificado</Text>
+        </View>
+      ) : esNuevo ? (
+        <View style={ci.badgeNuevo}>
+          <Text style={ci.badgeNuevoTxt}>Cliente nuevo</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+const ci = StyleSheet.create({
+  row: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    backgroundColor: C.bg,
+    borderRadius:    14,
+    padding:         10,
+    marginBottom:    12,
+  },
+  foto:            { width: 42, height: 42, borderRadius: 21, backgroundColor: C.border },
+  fotoPlaceholder: {
+    width: 42, height: 42, borderRadius: 21,
+    backgroundColor: C.yellow, alignItems: 'center', justifyContent: 'center',
+  },
+  fotoInicial: { fontSize: 18, fontWeight: '800', color: C.black },
+  textos:      { flex: 1, marginLeft: 10 },
+  nombre:      { fontSize: 14, fontWeight: '700', color: C.black },
+  detalle:     { fontSize: 12, color: C.gray, marginTop: 2 },
+  badgeVerificado: {
+    backgroundColor: '#E8F8EE', borderRadius: 8, borderWidth: 1,
+    borderColor: '#22C55E', paddingHorizontal: 8, paddingVertical: 4,
+  },
+  badgeVerificadoTxt: { fontSize: 11, fontWeight: '700', color: '#15803D' },
+  badgeNuevo: {
+    backgroundColor: '#FFF4D6', borderRadius: 8, borderWidth: 1,
+    borderColor: '#F5A623', paddingHorizontal: 8, paddingVertical: 4,
+  },
+  badgeNuevoTxt: { fontSize: 11, fontWeight: '700', color: '#8B6000' },
+});
+
 function RideCard({ solicitud, location, onPress }) {
   const srv  = SERVICES.find(s => s.id === (solicitud.tipo_servicio || 'moto_pasajero'));
   const dist = location
@@ -621,6 +693,12 @@ function RideCard({ solicitud, location, onPress }) {
 
       <View style={rc.info}>
         <Text style={rc.srvName}>{srv?.label || 'Servicio'}</Text>
+        {solicitud.cliente_info && (
+          <Text style={rc.cliente} numberOfLines={1}>
+            👤 {solicitud.cliente_info.nombre || 'Cliente'} · {solicitud.cliente_info.viajes_completados || 0} viaje{(solicitud.cliente_info.viajes_completados || 0) === 1 ? '' : 's'}
+            {solicitud.cliente_info.identidad_verificada ? ' · ✓' : ''}
+          </Text>
+        )}
         <View style={rc.route}>
           <View style={rc.dotA} />
           <Text style={rc.addr} numberOfLines={1}>{solicitud.origen_direccion || 'Origen'}</Text>
@@ -894,6 +972,7 @@ const rc = StyleSheet.create({
   icon:    { fontSize: 24 },
   info:    { flex: 1, marginRight: 10 },
   srvName: { color: C.gray,  fontSize: 11, fontWeight: '600', marginBottom: 6, letterSpacing: 0.5 },
+  cliente: { color: C.black, fontSize: 12, fontWeight: '600', marginBottom: 6 },
   route:   { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
   dotA:    { width: 6, height: 6, borderRadius: 3, backgroundColor: C.yellow, marginRight: 6, flexShrink: 0 },
   dotB:    { width: 6, height: 6, borderRadius: 3, backgroundColor: C.black,  marginRight: 6, flexShrink: 0 },

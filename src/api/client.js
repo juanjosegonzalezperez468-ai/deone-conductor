@@ -31,7 +31,7 @@ api.interceptors.response.use(
           const idToken = await user.getIdToken(true);
           const { data } = await axios.post(
             `${API_URL}/auth/verificar-otp`,
-            { telefono: phone, token: idToken, tipo: 'conductor', nombre: 'conductor' },
+            { telefono: phone, token: idToken, tipo: 'conductor' },
             { headers: { 'Content-Type': 'application/json' } },
           );
           await storeBackendToken(data.token);

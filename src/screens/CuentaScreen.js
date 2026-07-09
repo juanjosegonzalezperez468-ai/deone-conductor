@@ -293,15 +293,26 @@ function VehiculoView({ vehiculo, conductorId, onBack, onSave }) {
 
   const save = async () => {
     if (!valid || saving) return;
+    const placaNorm = placa.replace(/[^a-z0-9]/gi, '').toUpperCase();
+    if (placaNorm.length < 5 || placaNorm.length > 7) {
+      Alert.alert('Placa inválida', 'Revisa la placa: debe tener entre 5 y 7 letras y números, sin espacios ni guiones (Ej. ABC123).');
+      return;
+    }
+    const anioNum = parseInt(anio, 10);
+    const anioMax = new Date().getFullYear() + 1;
+    if (!anioNum || anioNum < 1980 || anioNum > anioMax) {
+      Alert.alert('Año inválido', `El año del vehículo debe estar entre 1980 y ${anioMax}. Es el año/modelo del vehículo, no el año actual.`);
+      return;
+    }
     setSaving(true);
     try {
       await vehiculoApi.registrar({
         conductor_id:  conductorId,
         marca:         marca.trim(),
         modelo:        modelo.trim(),
-        placa:         placa.trim().toUpperCase(),
+        placa:         placaNorm,
         color:         color.trim(),
-        año:           parseInt(anio, 10),
+        año:           anioNum,
         tipo_servicio: tipoServicio,
       });
       await onSave();
@@ -337,12 +348,12 @@ function VehiculoView({ vehiculo, conductorId, onBack, onSave }) {
           autoCapitalize="words"
         />
 
-        <Text style={s.fieldLabel}>Modelo</Text>
+        <Text style={s.fieldLabel}>Línea / Referencia</Text>
         <TextInput
           style={s.fieldInput}
           value={modelo}
           onChangeText={setModelo}
-          placeholder="Ej. YZ 150"
+          placeholder="Ej. YZ 150, Spark GT"
           placeholderTextColor={C.gray}
           autoCapitalize="words"
         />
@@ -367,7 +378,7 @@ function VehiculoView({ vehiculo, conductorId, onBack, onSave }) {
           autoCapitalize="words"
         />
 
-        <Text style={s.fieldLabel}>Año</Text>
+        <Text style={s.fieldLabel}>Año / Modelo del vehículo</Text>
         <TextInput
           style={s.fieldInput}
           value={anio}

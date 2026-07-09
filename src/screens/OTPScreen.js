@@ -77,8 +77,13 @@ export default function OTPScreen({ navigate, params }) {
           telefono: phone,
           token:    idToken,
           tipo:     'conductor',
-          nombre:   'conductor',
         });
+        // El backend creó el perfil recién (sin nombre): mandar al registro
+        // para capturar el nombre real antes de continuar.
+        if (data.es_nuevo) {
+          navigate('RegistroConductor', { user, phone });
+          return;
+        }
         await storeBackendToken(data.token);
         await storeUserUuid(data.usuario.id);
         try {
