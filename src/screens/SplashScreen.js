@@ -4,6 +4,7 @@ import axios from 'axios';
 import auth from '@react-native-firebase/auth';
 import { API_URL } from '../constants/config';
 import { getBackendToken, storeBackendToken, getPhone, getUserUuid, storeUserUuid } from '../utils/tokenStorage';
+import { recuperarDocPendiente } from '../utils/docPendiente';
 import { servicesApi } from '../api/client';
 import { C } from '../constants/theme';
 
@@ -20,6 +21,9 @@ export default function SplashScreen({ navigate }) {
         const uuid = await getUserUuid();
         const jwt  = await getBackendToken();
         if (uuid && jwt) {
+          // Si Android mató la app mientras el conductor tomaba la foto de un
+          // documento, aquí se recupera y se sube (sin bloquear el arranque).
+          recuperarDocPendiente(uuid);
           try {
             const { data } = await servicesApi.conductor(uuid);
             const servicios = data.servicios || [];
@@ -46,6 +50,7 @@ export default function SplashScreen({ navigate }) {
         );
         await storeBackendToken(data.token);
         await storeUserUuid(data.usuario.id);
+        recuperarDocPendiente(data.usuario.id);
         if (!data.usuario.terminos_aceptados) {
           navigate('Terminos');
           return;

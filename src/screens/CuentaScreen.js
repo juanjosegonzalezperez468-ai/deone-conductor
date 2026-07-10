@@ -9,6 +9,7 @@ import {
   billingApi, conductorApi, documentosApi, vehiculoApi,
 } from '../api/client';
 import { getUserUuid, clearBackendToken, clearPhone, clearUserUuid } from '../utils/tokenStorage';
+import { marcarDocPendiente, limpiarDocPendiente } from '../utils/docPendiente';
 import { C, SHADOW } from '../constants/theme';
 
 /* ─── Constants ─────────────────────────────────────────── */
@@ -148,11 +149,15 @@ function DocumentosView({ documentos, conductorId, onBack, onRefresh }) {
               Alert.alert('Permiso denegado', 'Necesitamos acceso a tu cámara para tomar la foto.');
               return;
             }
+            // Si Android mata la app mientras la cámara está abierta, este
+            // marcador permite recuperar la foto y subirla al reiniciar.
+            await marcarDocPendiente(tipo);
             const result = await ImagePicker.launchCameraAsync({
               mediaTypes: ImagePicker.MediaTypeOptions.Images,
               quality: 0.8,
               allowsEditing: true,
             });
+            limpiarDocPendiente();
             if (!result.canceled) uploadDoc(tipo, result.assets[0].uri);
           },
         },
@@ -164,11 +169,13 @@ function DocumentosView({ documentos, conductorId, onBack, onRefresh }) {
               Alert.alert('Permiso denegado', 'Necesitamos acceso a tu galería para seleccionar la foto.');
               return;
             }
+            await marcarDocPendiente(tipo);
             const result = await ImagePicker.launchImageLibraryAsync({
               mediaTypes: ImagePicker.MediaTypeOptions.Images,
               quality: 0.8,
               allowsEditing: true,
             });
+            limpiarDocPendiente();
             if (!result.canceled) uploadDoc(tipo, result.assets[0].uri);
           },
         },
