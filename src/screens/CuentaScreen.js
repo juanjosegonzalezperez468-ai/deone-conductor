@@ -32,6 +32,21 @@ const TIPOS_SERVICIO = [
   { id: 'grua',           label: 'Grúa',      icon: '🚛' },
 ];
 
+// Sub-tipos de vehículo por servicio (grúa/acarreo). Deben coincidir con el backend.
+const SUBTIPOS = {
+  grua: [
+    { id: 'motocarro', label: 'Motocarro' },
+    { id: 'camioneta', label: 'Camioneta' },
+    { id: 'camabaja',  label: 'Camabaja' },
+  ],
+  acarreo: [
+    { id: 'motocarro', label: 'Motocarro' },
+    { id: 'camioneta', label: 'Camioneta' },
+    { id: 'turbo',     label: 'Turbo' },
+    { id: 'nh',        label: 'NH' },
+  ],
+};
+
 const FAQ = [
   {
     q: '¿Cuándo me activan la cuenta?',
@@ -294,9 +309,23 @@ function VehiculoView({ vehiculo, conductorId, onBack, onSave }) {
   const [color,        setColor]        = useState(vehiculo?.color         || '');
   const [anio,         setAnio]         = useState(vehiculo?.año ? String(vehiculo.año) : '');
   const [tipoServicio, setTipoServicio] = useState(vehiculo?.tipo_servicio || null);
+  const [subtipo,      setSubtipo]      = useState(vehiculo?.subtipo || null);
+  const [capacidad,    setCapacidad]    = useState(vehiculo?.capacidad_kg ? String(vehiculo.capacidad_kg) : '');
   const [saving,       setSaving]       = useState(false);
 
-  const valid = marca.trim() && modelo.trim() && placa.trim() && color.trim() && anio.trim() && tipoServicio;
+  const subtiposDisponibles = SUBTIPOS[tipoServicio] || null;   // solo grúa/acarreo
+  const requiereSubtipo = !!subtiposDisponibles;
+
+  // Al cambiar el tipo de servicio, limpiar el sub-tipo si ya no aplica
+  const cambiarTipo = (id) => {
+    setTipoServicio(id);
+    if (!SUBTIPOS[id]) { setSubtipo(null); setCapacidad(''); }
+    else if (!SUBTIPOS[id].some((x) => x.id === subtipo)) setSubtipo(null);
+  };
+
+  const valid =
+    marca.trim() && modelo.trim() && placa.trim() && color.trim() && anio.trim() &&
+    tipoServicio && (!requiereSubtipo || !!subtipo);
 
   const save = async () => {
     if (!valid || saving) return;
@@ -321,6 +350,8 @@ function VehiculoView({ vehiculo, conductorId, onBack, onSave }) {
         color:         color.trim(),
         año:           anioNum,
         tipo_servicio: tipoServicio,
+        subtipo:       requiereSubtipo ? subtipo : null,
+        capacidad_kg:  tipoServicio === 'acarreo' && capacidad ? parseInt(capacidad, 10) : null,
       });
       await onSave();
       Alert.alert('Guardado', 'Información del vehículo guardada.');
@@ -402,7 +433,7 @@ function VehiculoView({ vehiculo, conductorId, onBack, onSave }) {
             <TouchableOpacity
               key={t.id}
               style={tipoServicio === t.id ? s.tipoCardSelected : s.tipoCard}
-              onPress={() => setTipoServicio(t.id)}
+              onPress={() => cambiarTipo(t.id)}
               activeOpacity={0.8}
             >
               <Text style={s.tipoIcon}>{t.icon}</Text>
@@ -412,6 +443,45 @@ function VehiculoView({ vehiculo, conductorId, onBack, onSave }) {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Sub-tipo del vehículo (solo grúa/acarreo) */}
+        {requiereSubtipo && (
+          <>
+            <Text style={s.fieldLabel}>
+              {tipoServicio === 'grua' ? 'Tipo de grúa' : 'Tipo de vehículo de carga'}
+            </Text>
+            <View style={s.tipoGrid}>
+              {subtiposDisponibles.map((st) => (
+                <TouchableOpacity
+                  key={st.id}
+                  style={subtipo === st.id ? s.subtipoSelected : s.subtipoCard}
+                  onPress={() => setSubtipo(st.id)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={subtipo === st.id ? s.tipoLabelSelected : s.tipoLabel}>
+                    {st.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
+
+        {/* Capacidad de carga (solo acarreo, opcional) */}
+        {tipoServicio === 'acarreo' && (
+          <>
+            <Text style={s.fieldLabel}>Capacidad de carga en kg (opcional)</Text>
+            <TextInput
+              style={s.fieldInput}
+              value={capacidad}
+              onChangeText={(v) => setCapacidad(v.replace(/[^0-9]/g, ''))}
+              placeholder="Ej. 1500"
+              placeholderTextColor={C.gray}
+              keyboardType="numeric"
+              maxLength={6}
+            />
+          </>
+        )}
 
         <TouchableOpacity
           style={valid ? s.btn : s.btnDis}
@@ -1076,6 +1146,25 @@ const s = StyleSheet.create({
   tipoIcon:          { fontSize: 26, marginBottom: 6 },
   tipoLabel:         { fontSize: 13, fontWeight: '600', color: C.gray },
   tipoLabelSelected: { fontSize: 13, fontWeight: '700', color: C.black },
+
+  subtipoCard: {
+    width:           '47%',
+    borderWidth:     1.5,
+    borderColor:     C.border,
+    borderRadius:    14,
+    paddingVertical: 14,
+    alignItems:      'center',
+    backgroundColor: C.white,
+  },
+  subtipoSelected: {
+    width:           '47%',
+    borderWidth:     2,
+    borderColor:     C.yellow,
+    borderRadius:    14,
+    paddingVertical: 14,
+    alignItems:      'center',
+    backgroundColor: '#FFFBEA',
+  },
 
   /* ── Ayuda ── */
   contactCard: {
