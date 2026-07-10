@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, Modal,
   StyleSheet, StatusBar, ActivityIndicator, Alert, TextInput,
-  Switch, KeyboardAvoidingView, Platform, Image,
+  Switch, KeyboardAvoidingView, Platform, Image, Linking,
 } from 'react-native';
 import * as Location from 'expo-location';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
@@ -10,6 +10,62 @@ import { conductorApi, vehiculoApi, offersApi, locationsApi, servicesApi, billin
 import { SERVICES } from '../constants/services';
 import { getUserUuid } from '../utils/tokenStorage';
 import { C, SHADOW } from '../constants/theme';
+
+// Etiquetas legibles para el contexto de grúa / acarreo
+const LBL = {
+  motocarro: 'Motocarro', camioneta: 'Camioneta', camabaja: 'Camabaja',
+  turbo: 'Turbo', nh: 'NH', urbana: 'Urbana', intermunicipal: 'Intermunicipal',
+};
+const lbl = (v) => LBL[v] || v;
+
+// Bloque de detalles específicos de grúa / acarreo que ve el conductor
+function DetalleServicio({ solicitud }) {
+  if (!solicitud) return null;
+  const esGrua = solicitud.tipo_servicio === 'grua';
+  const esAcarreo = solicitud.tipo_servicio === 'acarreo';
+  if (!esGrua && !esAcarreo) return null;
+
+  const filas = [];
+  if (esGrua) {
+    if (solicitud.grua_tipo) filas.push(['Tipo de grúa', lbl(solicitud.grua_tipo)]);
+    if (solicitud.grua_zona) filas.push(['Zona', lbl(solicitud.grua_zona)]);
+    if (solicitud.tipo_vehiculo_varado) filas.push(['Vehículo', solicitud.tipo_vehiculo_varado]);
+  }
+  if (esAcarreo) {
+    if (solicitud.acarreo_tipo) filas.push(['Vehículo', lbl(solicitud.acarreo_tipo)]);
+    if (solicitud.peso_estimado_kg) filas.push(['Peso aprox.', `${solicitud.peso_estimado_kg} kg`]);
+    filas.push(['Ayudante', solicitud.necesita_ayudante ? 'Sí' : 'No']);
+  }
+
+  return (
+    <View style={ds.box}>
+      {filas.map(([k, v]) => (
+        <View key={k} style={ds.row}>
+          <Text style={ds.k}>{k}</Text>
+          <Text style={ds.v}>{v}</Text>
+        </View>
+      ))}
+      {esGrua && solicitud.tarjeta_propiedad_url && (
+        <TouchableOpacity
+          style={ds.docBtn}
+          onPress={() => Linking.openURL(solicitud.tarjeta_propiedad_url)}
+          activeOpacity={0.8}
+        >
+          <Text style={ds.docBtnTxt}>📄  Ver tarjeta de propiedad</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+}
+
+const ds = StyleSheet.create({
+  box: { backgroundColor: '#FFF8DC', borderRadius: 14, padding: 14, marginBottom: 14 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 4 },
+  k: { color: '#888888', fontSize: 13, fontWeight: '600' },
+  v: { color: '#111111', fontSize: 14, fontWeight: '700' },
+  docBtn: { marginTop: 10, backgroundColor: '#FFFFFF', borderRadius: 10, paddingVertical: 12, alignItems: 'center', borderWidth: 1, borderColor: '#EEEEEE' },
+  docBtnTxt: { color: '#111111', fontSize: 14, fontWeight: '700' },
+});
 
 const POLL_INTERVAL = 8000;
 
@@ -559,6 +615,8 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
                   </View>
                 </View>
               </View>
+
+              <DetalleServicio solicitud={selected} />
 
               <View style={s.metaRow}>
                 <View style={s.metaItem}>
