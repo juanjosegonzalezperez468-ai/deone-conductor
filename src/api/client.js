@@ -147,6 +147,7 @@ export const adminApi = {
   aprobarRecarga:        (id)      => api.post(`/billing/aprobar/${id}`),
   alertas:               ()        => api.get('/admin/alertas'),
   estadisticas:          ()        => api.get('/admin/estadisticas'),
+  mapaConductores:       ()        => api.get('/admin/mapa-conductores'),
 };
 
 export default api;

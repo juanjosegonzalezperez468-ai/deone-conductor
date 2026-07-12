@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput,
   StyleSheet, StatusBar, ActivityIndicator, Alert, Modal, RefreshControl,
 } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { adminApi } from '../api/client';
 import { C, SHADOW } from '../constants/theme';
 import { SERVICES } from '../constants/services';
@@ -10,6 +11,7 @@ import { SERVICES } from '../constants/services';
 /* ─── Constantes ──────────────────────────────────── */
 
 const SECCIONES = [
+  { key: 'mapa',        label: 'Mapa',        icon: '🗺️' },
   { key: 'conductores', label: 'Conductores', icon: '👤' },
   { key: 'directorio',  label: 'Directorio',  icon: '👥' },
   { key: 'recargas',    label: 'Recargas',    icon: '💳' },
@@ -570,6 +572,186 @@ function EstadisticasSection() {
   );
 }
 
+/* ─── Sección: Mapa de conductores ───────────────── */
+
+const MANIZALES = {
+  latitude: 5.0703, longitude: -75.5138,
+  latitudeDelta: 0.06, longitudeDelta: 0.06,
+};
+
+const fmtHoras = (min) => {
+  const m = Math.round(min || 0);
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+};
+
+const iconoServicio = (tipo) =>
+  (SERVICES.find((sv) => sv.id === tipo) || {}).icon || '🚗';
+
+const labelServicio = (tipo) =>
+  (SERVICES.find((sv) => sv.id === tipo) || {}).label || tipo || '—';
+
+function MapaSection() {
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [sel,     setSel]     = useState(null);
+  const [vista,   setVista]   = useState('mapa'); // 'mapa' | 'ranking'
+  const mapRef    = useRef(null);
+  const encuadrado = useRef(false);
+
+  const cargar = useCallback(async (silencioso = false) => {
+    if (!silencioso) setLoading(true);
+    try {
+      const { data: resp } = await adminApi.mapaConductores();
+      setData(resp);
+      // Encuadrar el mapa a los conductores solo la primera vez
+      if (!encuadrado.current && resp.conectados?.length && mapRef.current) {
+        encuadrado.current = true;
+        mapRef.current.fitToCoordinates(
+          resp.conectados.map((c) => ({ latitude: Number(c.lat), longitude: Number(c.lng) })),
+          { edgePadding: { top: 60, bottom: 220, left: 60, right: 60 }, animated: true },
+        );
+      }
+    } catch {
+      if (!silencioso) Alert.alert('Error', 'No se pudo cargar el mapa de conductores.');
+    } finally {
+      if (!silencioso) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    cargar();
+    const interval = setInterval(() => cargar(true), 15000);
+    return () => clearInterval(interval);
+  }, [cargar]);
+
+  const conectados = data?.conectados || [];
+  const ranking    = data?.ranking_semana || [];
+
+  if (loading) {
+    return (
+      <View style={s.centerWrap}>
+        <ActivityIndicator size="large" color={C.yellow} />
+      </View>
+    );
+  }
+
+  if (vista === 'ranking') {
+    return (
+      <ScrollView contentContainerStyle={s.listContent}>
+        <TouchableOpacity style={s.mapaToggleBtn} onPress={() => setVista('mapa')} activeOpacity={0.8}>
+          <Text style={s.mapaToggleTxt}>🗺️  Volver al mapa</Text>
+        </TouchableOpacity>
+
+        <Text style={s.rankingTitulo}>Horas conectadas — últimos 7 días</Text>
+        {ranking.length === 0 && (
+          <View style={s.emptyWrap}>
+            <Text style={s.emptyIcon}>⏱️</Text>
+            <Text style={s.emptyTxt}>Aún no hay horas registradas.</Text>
+            <Text style={s.rankingNota}>Las horas se acumulan desde que se activa esta función.</Text>
+          </View>
+        )}
+        {ranking.map((r, i) => (
+          <View key={r.conductor_id} style={s.rankingCard}>
+            <Text style={s.rankingPos}>{i + 1}</Text>
+            <View style={s.rankingInfo}>
+              <View style={s.rankingNombreRow}>
+                <View style={[s.puntoConexion, { backgroundColor: r.conectado ? C.green : C.border }]} />
+                <Text style={s.rankingNombre} numberOfLines={1}>
+                  {iconoServicio(r.vehiculo_tipo)}  {r.nombre}
+                </Text>
+              </View>
+              <Text style={s.rankingSub}>
+                Hoy: {fmtHoras(r.minutos_hoy)} · {r.dias_activos} día{r.dias_activos !== 1 ? 's' : ''} activo{r.dias_activos !== 1 ? 's' : ''}
+              </Text>
+            </View>
+            <Text style={s.rankingHoras}>{fmtHoras(r.minutos_semana)}</Text>
+          </View>
+        ))}
+      </ScrollView>
+    );
+  }
+
+  return (
+    <View style={s.mapaWrap}>
+      <MapView
+        ref={mapRef}
+        provider={PROVIDER_GOOGLE}
+        style={s.mapa}
+        initialRegion={MANIZALES}
+        onPress={() => setSel(null)}
+      >
+        {conectados.map((c) => {
+          const tipo = c.vehiculo?.tipo_servicio || (c.servicios_activos || [])[0];
+          return (
+            <Marker
+              key={c.conductor_id}
+              coordinate={{ latitude: Number(c.lat), longitude: Number(c.lng) }}
+              onPress={() => setSel(c)}
+              tracksViewChanges={false}
+            >
+              <View style={[s.markerPin, { borderColor: c.disponible ? C.green : C.gray }]}>
+                <Text style={s.markerIcon}>{iconoServicio(tipo)}</Text>
+              </View>
+            </Marker>
+          );
+        })}
+      </MapView>
+
+      {/* Contador + botón ranking */}
+      <View style={s.mapaTopBar}>
+        <View style={s.mapaContador}>
+          <View style={[s.puntoConexion, { backgroundColor: C.green }]} />
+          <Text style={s.mapaContadorTxt}>
+            {conectados.length} conectado{conectados.length !== 1 ? 's' : ''}
+          </Text>
+        </View>
+        <TouchableOpacity style={s.mapaRankingBtn} onPress={() => setVista('ranking')} activeOpacity={0.8}>
+          <Text style={s.mapaRankingBtnTxt}>⏱️ Horas</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Detalle del conductor seleccionado */}
+      {sel && (
+        <View style={s.mapaDetalle}>
+          <View style={s.mapaDetalleHeader}>
+            <Text style={s.mapaDetalleNombre} numberOfLines={1}>
+              {iconoServicio(sel.vehiculo?.tipo_servicio || (sel.servicios_activos || [])[0])}  {sel.nombre}
+            </Text>
+            <View style={[s.dispBadge, { backgroundColor: sel.disponible ? C.greenBg : C.bg, borderColor: sel.disponible ? C.greenBorder : C.border }]}>
+              <Text style={[s.dispBadgeTxt, { color: sel.disponible ? '#15803D' : C.gray }]}>
+                {sel.disponible ? 'Disponible' : 'Ocupado'}
+              </Text>
+            </View>
+          </View>
+          <Text style={s.mapaDetalleSub}>
+            {labelServicio(sel.vehiculo?.tipo_servicio)}
+            {sel.vehiculo?.subtipo ? ` · ${sel.vehiculo.subtipo}` : ''}
+            {sel.vehiculo?.placa ? ` · ${sel.vehiculo.placa}` : ''}
+            {sel.rating ? ` · ★ ${Number(sel.rating).toFixed(1)}` : ''}
+          </Text>
+          <View style={s.mapaDetalleMeta}>
+            <View style={s.metaItem}>
+              <Text style={s.metaLbl}>Hoy</Text>
+              <Text style={s.metaVal}>{fmtHoras(sel.minutos_hoy)}</Text>
+            </View>
+            <View style={s.metaDivider} />
+            <View style={s.metaItem}>
+              <Text style={s.metaLbl}>Esta semana</Text>
+              <Text style={s.metaVal}>{fmtHoras(sel.minutos_semana)}</Text>
+            </View>
+            <View style={s.metaDivider} />
+            <View style={s.metaItem}>
+              <Text style={s.metaLbl}>Teléfono</Text>
+              <Text style={s.metaVal}>{sel.telefono || '—'}</Text>
+            </View>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
 /* ─── Pantalla principal Admin ───────────────────── */
 
 export default function AdminScreen({ navigate, onMenuPress }) {
@@ -613,6 +795,7 @@ export default function AdminScreen({ navigate, onMenuPress }) {
       </View>
 
       {/* Contenido */}
+      {seccion === 'mapa'        && <MapaSection />}
       {seccion === 'conductores' && <ConductoresSection navigate={navigate} />}
       {seccion === 'directorio'  && <DirectorioSection navigate={navigate} />}
       {seccion === 'recargas'    && <RecargasSection />}
@@ -677,6 +860,112 @@ const s = StyleSheet.create({
   segmentIcon:        { fontSize: 14 },
   segmentLabel:       { fontSize: 13, fontWeight: '600', color: C.gray },
   segmentLabelActive: { fontSize: 13, fontWeight: '700', color: C.yellow },
+
+  /* Mapa */
+  mapaWrap: { flex: 1 },
+  mapa:     { flex: 1 },
+  markerPin: {
+    backgroundColor: C.white,
+    borderRadius:    18,
+    borderWidth:     2.5,
+    paddingHorizontal: 6,
+    paddingVertical:   4,
+    ...SHADOW,
+  },
+  markerIcon: { fontSize: 18 },
+  mapaTopBar: {
+    position:       'absolute',
+    top:            10,
+    left:           16,
+    right:          16,
+    flexDirection:  'row',
+    justifyContent: 'space-between',
+    alignItems:     'center',
+  },
+  mapaContador: {
+    flexDirection:     'row',
+    alignItems:        'center',
+    backgroundColor:   C.white,
+    borderRadius:      18,
+    paddingHorizontal: 14,
+    paddingVertical:   8,
+    gap:               8,
+    ...SHADOW,
+  },
+  mapaContadorTxt: { fontSize: 13, fontWeight: '700', color: C.black },
+  puntoConexion:   { width: 9, height: 9, borderRadius: 5 },
+  mapaRankingBtn: {
+    backgroundColor:   C.black,
+    borderRadius:      18,
+    paddingHorizontal: 14,
+    paddingVertical:   8,
+    ...SHADOW,
+  },
+  mapaRankingBtnTxt: { fontSize: 13, fontWeight: '700', color: C.yellow },
+  mapaDetalle: {
+    position:        'absolute',
+    left:            16,
+    right:           16,
+    bottom:          16,
+    backgroundColor: C.white,
+    borderRadius:    20,
+    padding:         16,
+    ...SHADOW,
+  },
+  mapaDetalleHeader: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'space-between',
+    marginBottom:   4,
+  },
+  mapaDetalleNombre: { fontSize: 16, fontWeight: '700', color: C.black, flex: 1, marginRight: 8 },
+  dispBadge: {
+    borderRadius:      10,
+    paddingHorizontal: 10,
+    paddingVertical:   4,
+    borderWidth:       1,
+  },
+  dispBadgeTxt:   { fontSize: 10, fontWeight: '700' },
+  mapaDetalleSub: { fontSize: 13, color: C.gray, marginBottom: 12 },
+  mapaDetalleMeta: {
+    flexDirection:   'row',
+    backgroundColor: C.bg,
+    borderRadius:    14,
+    padding:         12,
+  },
+  mapaToggleBtn: {
+    backgroundColor: C.white,
+    borderRadius:    14,
+    paddingVertical: 12,
+    alignItems:      'center',
+    marginBottom:    16,
+    ...SHADOW,
+  },
+  mapaToggleTxt: { fontSize: 14, fontWeight: '700', color: C.black },
+  rankingTitulo: { fontSize: 16, fontWeight: '800', color: C.black, marginBottom: 12 },
+  rankingNota:   { fontSize: 12, color: C.gray, marginTop: 8, textAlign: 'center' },
+  rankingCard: {
+    flexDirection:   'row',
+    alignItems:      'center',
+    backgroundColor: C.white,
+    borderRadius:    16,
+    padding:         14,
+    marginBottom:    10,
+    ...SHADOW,
+  },
+  rankingPos: {
+    width:       30,
+    fontSize:    16,
+    fontWeight:  '800',
+    color:       C.gray,
+    textAlign:   'center',
+    marginRight: 8,
+  },
+  rankingInfo:      { flex: 1 },
+  rankingNombreRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 3 },
+  rankingNombre:    { fontSize: 14, fontWeight: '700', color: C.black, flex: 1 },
+  rankingSub:       { fontSize: 12, color: C.gray },
+  rankingHoras:     { fontSize: 15, fontWeight: '800', color: C.black, marginLeft: 8 },
 
   /* List */
   listContent: { paddingHorizontal: 16, paddingBottom: 32, paddingTop: 4 },
