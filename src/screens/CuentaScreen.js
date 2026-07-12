@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput,
-  StyleSheet, StatusBar, ActivityIndicator, Alert, Linking, Platform,
+  StyleSheet, StatusBar, ActivityIndicator, Alert, Linking, Platform, Image,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import auth from '@react-native-firebase/auth';
@@ -74,6 +74,77 @@ const TEL_URL      = 'tel:3239420671';
 function PerfilView({ perfil, conductorId, onBack, onSave }) {
   const [nombre,  setNombre]  = useState(perfil?.nombre   || '');
   const [saving,  setSaving]  = useState(false);
+  const [foto,         setFoto]         = useState(perfil?.foto_url || null);
+  const [subiendoFoto, setSubiendoFoto] = useState(false);
+
+  const subirNuevaFoto = async (uri) => {
+    setSubiendoFoto(true);
+    try {
+      // Mismo flujo que "Mis Documentos": queda en revisión del admin y el
+      // backend la publica en users.foto_url para que el cliente la vea.
+      const formData = new FormData();
+      formData.append('archivo', { uri, type: 'image/jpeg', name: 'foto_perfil.jpg' });
+      formData.append('tipo_documento', 'foto_perfil');
+      formData.append('conductor_id', conductorId);
+      await documentosApi.subir(formData);
+      setFoto(uri);
+      await onSave();
+    } catch (err) {
+      const detalle = err.response?.data?.detail || err.message || 'Error desconocido';
+      Alert.alert('Error al subir la foto', detalle);
+    } finally {
+      setSubiendoFoto(false);
+    }
+  };
+
+  const cambiarFoto = () => {
+    if (subiendoFoto) return;
+    Alert.alert(
+      'Foto de perfil',
+      'Tu foto la verán los clientes en tus ofertas.',
+      [
+        {
+          text: 'Tomar foto',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert('Permiso denegado', 'Necesitamos acceso a tu cámara para tomar la foto.');
+              return;
+            }
+            await marcarDocPendiente('foto_perfil');
+            const result = await ImagePicker.launchCameraAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              quality: 0.8,
+              allowsEditing: true,
+              aspect: [1, 1],
+            });
+            limpiarDocPendiente();
+            if (!result.canceled) subirNuevaFoto(result.assets[0].uri);
+          },
+        },
+        {
+          text: 'Elegir de galería',
+          onPress: async () => {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+              Alert.alert('Permiso denegado', 'Necesitamos acceso a tu galería para seleccionar la foto.');
+              return;
+            }
+            await marcarDocPendiente('foto_perfil');
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              quality: 0.8,
+              allowsEditing: true,
+              aspect: [1, 1],
+            });
+            limpiarDocPendiente();
+            if (!result.canceled) subirNuevaFoto(result.assets[0].uri);
+          },
+        },
+        { text: 'Cancelar', style: 'cancel' },
+      ]
+    );
+  };
 
   const save = async () => {
     if (!nombre.trim() || saving) return;
@@ -104,9 +175,27 @@ function PerfilView({ perfil, conductorId, onBack, onSave }) {
       </View>
 
       <ScrollView contentContainerStyle={s.subContent} keyboardShouldPersistTaps="handled">
-        <View style={s.avatarBig}>
-          <Text style={s.avatarBigTxt}>{inicial}</Text>
-        </View>
+        <TouchableOpacity onPress={cambiarFoto} activeOpacity={0.8} disabled={subiendoFoto} style={s.avatarTouch}>
+          {subiendoFoto ? (
+            <View style={s.avatarBig}>
+              <ActivityIndicator color={C.black} />
+            </View>
+          ) : foto ? (
+            <Image source={{ uri: foto }} style={s.avatarBigFoto} />
+          ) : (
+            <View style={s.avatarBig}>
+              <Text style={s.avatarBigTxt}>{inicial}</Text>
+            </View>
+          )}
+          <View style={s.avatarCamBadge}>
+            <Text style={s.avatarCamIcon}>📷</Text>
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={cambiarFoto} activeOpacity={0.7} disabled={subiendoFoto}>
+          <Text style={s.cambiarFotoTxt}>
+            {subiendoFoto ? 'Subiendo foto…' : 'Cambiar foto de perfil'}
+          </Text>
+        </TouchableOpacity>
 
         <Text style={s.fieldLabel}>Nombre completo</Text>
         <TextInput
@@ -1011,6 +1100,7 @@ const s = StyleSheet.create({
   logoutTxt: { color: C.red, fontSize: 15, fontWeight: '700' },
 
   /* ── Shared sub-screen elements ── */
+  avatarTouch: { alignSelf: 'center' },
   avatarBig: {
     width:           96,
     height:          96,
@@ -1018,11 +1108,38 @@ const s = StyleSheet.create({
     backgroundColor: C.yellow,
     alignItems:      'center',
     justifyContent:  'center',
-    alignSelf:       'center',
-    marginBottom:    28,
     ...SHADOW,
   },
   avatarBigTxt: { color: C.black, fontSize: 44, fontWeight: '800' },
+  avatarBigFoto: {
+    width:           96,
+    height:          96,
+    borderRadius:    48,
+    backgroundColor: C.border,
+    ...SHADOW,
+  },
+  avatarCamBadge: {
+    position:        'absolute',
+    right:           -2,
+    bottom:          -2,
+    width:           30,
+    height:          30,
+    borderRadius:    15,
+    backgroundColor: C.white,
+    alignItems:      'center',
+    justifyContent:  'center',
+    borderWidth:     1,
+    borderColor:     C.border,
+  },
+  avatarCamIcon:  { fontSize: 15 },
+  cambiarFotoTxt: {
+    color:              C.gray,
+    fontSize:           13,
+    textAlign:          'center',
+    marginTop:          10,
+    marginBottom:       24,
+    textDecorationLine: 'underline',
+  },
 
   fieldLabel: { fontSize: 13, fontWeight: '600', color: C.black, marginBottom: 8, marginTop: 4 },
   fieldInput: {
