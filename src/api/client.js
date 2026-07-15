@@ -130,6 +130,32 @@ export const chatApi = {
     }),
 };
 
+// Rutas urbanas de reparto: el conductor trabaja por horas entregando
+// múltiples pedidos de un comercio en un solo recorrido.
+export const rutasApi = {
+  disponibles:     ()   => api.get('/rutas/disponibles'),
+  misRutas:        ()   => api.get('/rutas/mis-rutas', { params: { rol: 'conductor' } }),
+  obtener:         (id) => api.get(`/rutas/${id}`),
+  aceptar:         (id) => api.post(`/rutas/${id}/aceptar`),
+  iniciarRecogida: (id) => api.post(`/rutas/${id}/iniciar-recogida`),
+  iniciarReparto:  (id) => api.post(`/rutas/${id}/iniciar-reparto`),
+  espera: (id, paradaId, accion, motivo) =>
+    api.post(`/rutas/${id}/paradas/${paradaId}/espera`, { accion, motivo }),
+  subirFoto: (id, paradaId, formData) =>
+    api.post(`/rutas/${id}/paradas/${paradaId}/foto`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 30000,
+    }),
+  entregar: (id, paradaId, fotoPath) =>
+    api.post(`/rutas/${id}/paradas/${paradaId}/entregar`, { foto_path: fotoPath }),
+  fallida: (id, paradaId, fotoPath, motivo) =>
+    api.post(`/rutas/${id}/paradas/${paradaId}/fallida`, { foto_path: fotoPath, motivo }),
+  finalizar: (id)         => api.post(`/rutas/${id}/finalizar`),
+  cancelar:  (id, motivo) => api.post(`/rutas/${id}/cancelar`, { motivo }),
+  calificarCliente: (rutaId, calificacion, comentario) =>
+    api.post('/ratings', { ruta_id: rutaId, calificacion, comentario }),
+};
+
 export const adminApi = {
   conductoresPendientes: ()        => api.get('/admin/conductores/pendientes'),
   conductoresActivos:    ()        => api.get('/admin/conductores/activos'),

@@ -4,10 +4,15 @@ import {
   Animated, Dimensions, Platform,
 } from 'react-native';
 import auth                        from '@react-native-firebase/auth';
+import AsyncStorage                from '@react-native-async-storage/async-storage';
 import * as Notifications          from 'expo-notifications';
 import * as Device                 from 'expo-device';
-import { fcmApi, conductorApi, servicesApi } from './src/api/client';
+import * as Location               from 'expo-location';
+import { fcmApi, conductorApi, servicesApi, locationsApi, vehiculoApi } from './src/api/client';
 import { getUserUuid }             from './src/utils/tokenStorage';
+import {
+  iniciarUbicacionSegundoPlano, detenerUbicacionSegundoPlano, KEY_TIPO_SERVICIO,
+} from './src/utils/backgroundLocation';
 import SplashScreen                from './src/screens/SplashScreen';
 import LoginScreen                 from './src/screens/LoginScreen';
 import OTPScreen                   from './src/screens/OTPScreen';
@@ -24,9 +29,13 @@ import ConductorDetalleScreen      from './src/screens/ConductorDetalleScreen';
 import CreditoWEWINScreen          from './src/screens/CreditoWEWINScreen';
 import ChatScreen                  from './src/screens/ChatScreen';
 import TerminosScreen              from './src/screens/TerminosScreen';
+import RutasScreen                 from './src/screens/RutasScreen';
+import RutaActivaScreen            from './src/screens/RutaActivaScreen';
 
-const ADMIN_PHONE = '+573239420671';
-const DRAWER_W    = Dimensions.get('window').width * 0.82;
+const ADMIN_PHONE     = '+573239420671';
+const DRAWER_W        = Dimensions.get('window').width * 0.82;
+const KEY_DISPONIBLE  = 'conductor_disponible';
+const HEARTBEAT_MS    = 20000; // el backend marca desconectado tras 10 min sin ping
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -78,7 +87,10 @@ export default function App() {
   const [disponible,      setDisponible]      = useState(false);
   const [drawerOpen,      setDrawerOpen]      = useState(false);
   const [conductorNombre, setConductorNombre] = useState('');
-  const drawerAnim = useRef(new Animated.Value(-DRAWER_W)).current;
+  const drawerAnim         = useRef(new Animated.Value(-DRAWER_W)).current;
+  const tipoServicioRef    = useRef(null);
+  const coordsRef          = useRef(null);
+  const prevDisponibleRef  = useRef(false);
 
   useEffect(() => {
     const unsubscribe = auth().onAuthStateChanged((user) => {
@@ -90,15 +102,101 @@ export default function App() {
           conductorApi.perfil(uuid)
             .then(({ data }) => { if (data?.nombre) setConductorNombre(data.nombre); })
             .catch(() => {});
+          vehiculoApi.obtener(uuid)
+            .then(({ data }) => {
+              if (data?.tipo_servicio) {
+                tipoServicioRef.current = data.tipo_servicio;
+                // La tarea de segundo plano lo lee de AsyncStorage
+                AsyncStorage.setItem(KEY_TIPO_SERVICIO, data.tipo_servicio).catch(() => {});
+              }
+            })
+            .catch(() => {});
         });
       }
     });
     return unsubscribe;
   }, []);
 
+  // Restaurar el estado disponible/inactivo tras reiniciar la app: el toggle
+  // solo cambia cuando el conductor lo cambia, no al matar/reabrir la app.
+  useEffect(() => {
+    AsyncStorage.getItem(KEY_DISPONIBLE)
+      .then((v) => {
+        if (v === 'true') setDisponible(true);
+        // Si quedó un servicio de ubicación huérfano de una sesión anterior
+        // con el toggle apagado, detenerlo.
+        else detenerUbicacionSegundoPlano();
+      })
+      .catch(() => {});
+  }, []);
+
+  const cambiarDisponible = (val) => {
+    setDisponible(val);
+    AsyncStorage.setItem(KEY_DISPONIBLE, String(val)).catch(() => {});
+  };
+
+  // Heartbeat: mientras el conductor esté disponible, enviar la ubicación
+  // periódicamente. Sin esto el backend lo marca desconectado a los 10 min
+  // sin ping (deja de aparecer en el mapa admin y de recibir solicitudes).
+  // Vive en App para que no muera al navegar entre pantallas. El servicio de
+  // segundo plano cubre pantalla apagada/app minimizada; este heartbeat queda
+  // como respaldo si el permiso "todo el tiempo" se niega.
+  useEffect(() => {
+    const eraDisponible = prevDisponibleRef.current;
+    prevDisponibleRef.current = disponible;
+    if (!disponible) {
+      // Solo detener al pasar de disponible → inactivo; en el primer render
+      // (antes de restaurar desde AsyncStorage) no hay que tocar el servicio.
+      if (eraDisponible) detenerUbicacionSegundoPlano();
+      return;
+    }
+    iniciarUbicacionSegundoPlano();
+    let vivo = true;
+    let watchSub = null;
+
+    const enviarPing = async () => {
+      const uuid = await getUserUuid();
+      const coords = coordsRef.current;
+      if (!vivo || !uuid || !coords) return;
+      locationsApi.actualizar({
+        conductor_id:      uuid,
+        lat:               coords.latitude,
+        lng:               coords.longitude,
+        disponible:        true,
+        servicios_activos: tipoServicioRef.current ? [tipoServicioRef.current] : [],
+      }).catch(() => {});
+    };
+
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+        watchSub = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.Balanced, timeInterval: 8000, distanceInterval: 20 },
+          (loc) => { coordsRef.current = loc.coords; },
+        );
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        if (loc) coordsRef.current = loc.coords;
+        enviarPing();
+      } catch {}
+    })();
+
+    const iv = setInterval(enviarPing, HEARTBEAT_MS);
+    return () => { vivo = false; clearInterval(iv); watchSub?.remove?.(); };
+  }, [disponible]);
+
   useEffect(() => {
     const handleResponse = async (response) => {
       const data = response?.notification?.request?.content?.data;
+      // Notificaciones de rutas de reparto
+      if (data?.ruta_id) {
+        if (data?.screen === 'RutaEnCurso' || data?.screen === 'RutaFinalizada') {
+          navigate('RutaActiva', { rutaId: data.ruta_id });
+        } else {
+          navigate('Rutas');
+        }
+        return;
+      }
       if (data?.screen === 'EnServicio' && data?.service_id) {
         try {
           const { data: solicitud } = await servicesApi.obtener(data.service_id);
@@ -158,6 +256,15 @@ export default function App() {
   if (screen === 'CreditoWEWIN') {
     return <CreditoWEWINScreen onBack={() => navigate('App')} />;
   }
+  if (screen === 'RutaActiva') {
+    return (
+      <RutaActivaScreen
+        params={screenParams}
+        navigate={navigate}
+        goHome={() => navigate('Rutas')}
+      />
+    );
+  }
 
   let mainContent;
   if (screen === 'Ganancias') {
@@ -168,13 +275,15 @@ export default function App() {
     mainContent = <CuentaScreen navigate={navigate} onMenuPress={abrirDrawer} />;
   } else if (screen === 'Admin') {
     mainContent = <AdminScreen navigate={navigate} onMenuPress={abrirDrawer} />;
+  } else if (screen === 'Rutas') {
+    mainContent = <RutasScreen navigate={navigate} onMenuPress={abrirDrawer} />;
   } else {
     mainContent = (
       <SolicitudesScreen
         navigate={navigate}
         isAdmin={isAdmin}
         disponible={disponible}
-        onDisponibleChange={setDisponible}
+        onDisponibleChange={cambiarDisponible}
         onMenuPress={abrirDrawer}
       />
     );
@@ -207,6 +316,7 @@ export default function App() {
             <View style={dr.sep} />
 
             <DrawerItem icon="🏠" label="Inicio"    onPress={() => irA('App')} />
+            <DrawerItem icon="📦" label="Rutas"     onPress={() => irA('Rutas')} />
             <DrawerItem icon="💰" label="Ganancias" onPress={() => irA('Ganancias')} />
             <DrawerItem icon="📋" label="Actividad"  onPress={() => irA('Actividad')} />
             <DrawerItem icon="👤" label="Cuenta"     onPress={() => irA('Cuenta')} />
