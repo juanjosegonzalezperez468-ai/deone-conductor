@@ -12,7 +12,10 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["location"]
+      }
     },
     "android": {
       "googleServicesFile": "./google-services.json",
@@ -42,7 +45,9 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Deone Conductor necesita tu ubicación para mostrarte a los clientes cercanos."
+          "locationAlwaysAndWhenInUsePermission": "Deone Conductor necesita tu ubicación (incluso en segundo plano) para mostrarte a los clientes cercanos y enviarte solicitudes mientras estés disponible.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
         }
       ],
       [

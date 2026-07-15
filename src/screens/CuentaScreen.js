@@ -4,11 +4,13 @@ import {
   StyleSheet, StatusBar, ActivityIndicator, Alert, Linking, Platform, Image,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import auth from '@react-native-firebase/auth';
 import {
   billingApi, conductorApi, documentosApi, vehiculoApi,
 } from '../api/client';
 import { getUserUuid, clearBackendToken, clearPhone, clearUserUuid } from '../utils/tokenStorage';
+import { detenerUbicacionSegundoPlano, KEY_TIPO_SERVICIO } from '../utils/backgroundLocation';
 import { marcarDocPendiente, limpiarDocPendiente } from '../utils/docPendiente';
 import { C, SHADOW } from '../constants/theme';
 
@@ -442,6 +444,8 @@ function VehiculoView({ vehiculo, conductorId, onBack, onSave }) {
         subtipo:       requiereSubtipo ? subtipo : null,
         capacidad_kg:  tipoServicio === 'acarreo' && capacidad ? parseInt(capacidad, 10) : null,
       });
+      // El heartbeat de segundo plano lee el tipo de servicio de AsyncStorage
+      AsyncStorage.setItem(KEY_TIPO_SERVICIO, tipoServicio).catch(() => {});
       await onSave();
       Alert.alert('Guardado', 'Información del vehículo guardada.');
     } catch (err) {
@@ -734,7 +738,12 @@ export default function CuentaScreen({ navigate, onMenuPress }) {
           text: 'Cerrar sesión',
           style: 'destructive',
           onPress: async () => {
-            await Promise.all([clearBackendToken(), clearPhone(), clearUserUuid()]);
+            await detenerUbicacionSegundoPlano();
+            await Promise.all([
+              clearBackendToken(), clearPhone(), clearUserUuid(),
+              AsyncStorage.removeItem('conductor_disponible'),
+              AsyncStorage.removeItem(KEY_TIPO_SERVICIO),
+            ]);
             await auth().signOut();
             navigate('Login');
           },

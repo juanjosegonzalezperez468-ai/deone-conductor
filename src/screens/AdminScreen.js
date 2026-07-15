@@ -591,6 +591,19 @@ const iconoServicio = (tipo) =>
 const labelServicio = (tipo) =>
   (SERVICES.find((sv) => sv.id === tipo) || {}).label || tipo || '—';
 
+// Antigüedad del último ping ("hace 30 s", "hace 4 min")
+const hacePing = (iso) => {
+  if (!iso) return null;
+  const seg = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  if (seg < 60) return `hace ${seg} s`;
+  return `hace ${Math.round(seg / 60)} min`;
+};
+
+// Un conductor con ping reciente está realmente ahí; si lleva >3 min sin
+// enviar ubicación (app cerrada, sin señal) el marcador se atenúa.
+const pingReciente = (iso) =>
+  iso && Date.now() - new Date(iso).getTime() < 3 * 60 * 1000;
+
 function MapaSection() {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
@@ -604,6 +617,11 @@ function MapaSection() {
     try {
       const { data: resp } = await adminApi.mapaConductores();
       setData(resp);
+      // Refrescar también la tarjeta de detalle abierta con los datos nuevos
+      setSel((prev) => {
+        if (!prev) return prev;
+        return (resp.conectados || []).find((c) => c.conductor_id === prev.conductor_id) || prev;
+      });
       // Encuadrar el mapa a los conductores solo la primera vez
       if (!encuadrado.current && resp.conectados?.length && mapRef.current) {
         encuadrado.current = true;
@@ -682,15 +700,24 @@ function MapaSection() {
         onPress={() => setSel(null)}
       >
         {conectados.map((c) => {
-          const tipo = c.vehiculo?.tipo_servicio || (c.servicios_activos || [])[0];
+          const tipo    = c.vehiculo?.tipo_servicio || (c.servicios_activos || [])[0];
+          const reciente = pingReciente(c.updated_at);
           return (
             <Marker
-              key={c.conductor_id}
+              // La key incluye estado y frescura: con tracksViewChanges=false el
+              // marcador no se re-dibuja solo, así que lo forzamos a remontarse
+              // cuando el conductor cambia de disponible/no disponible.
+              key={`${c.conductor_id}-${c.disponible ? 'on' : 'off'}-${reciente ? 'ok' : 'stale'}`}
               coordinate={{ latitude: Number(c.lat), longitude: Number(c.lng) }}
               onPress={() => setSel(c)}
               tracksViewChanges={false}
             >
-              <View style={[s.markerPin, { borderColor: c.disponible ? C.green : C.gray }]}>
+              <View
+                style={[
+                  s.markerPin,
+                  { borderColor: c.disponible ? C.green : C.gray, opacity: reciente ? 1 : 0.45 },
+                ]}
+              >
                 <Text style={s.markerIcon}>{iconoServicio(tipo)}</Text>
               </View>
             </Marker>
@@ -703,7 +730,8 @@ function MapaSection() {
         <View style={s.mapaContador}>
           <View style={[s.puntoConexion, { backgroundColor: C.green }]} />
           <Text style={s.mapaContadorTxt}>
-            {conectados.length} conectado{conectados.length !== 1 ? 's' : ''}
+            {conectados.filter((c) => c.disponible).length} disponible
+            {conectados.filter((c) => c.disponible).length !== 1 ? 's' : ''} · {conectados.length} conectado{conectados.length !== 1 ? 's' : ''}
           </Text>
         </View>
         <TouchableOpacity style={s.mapaRankingBtn} onPress={() => setVista('ranking')} activeOpacity={0.8}>
@@ -720,7 +748,7 @@ function MapaSection() {
             </Text>
             <View style={[s.dispBadge, { backgroundColor: sel.disponible ? C.greenBg : C.bg, borderColor: sel.disponible ? C.greenBorder : C.border }]}>
               <Text style={[s.dispBadgeTxt, { color: sel.disponible ? '#15803D' : C.gray }]}>
-                {sel.disponible ? 'Disponible' : 'Ocupado'}
+                {sel.disponible ? 'Disponible' : 'No disponible'}
               </Text>
             </View>
           </View>
@@ -729,6 +757,7 @@ function MapaSection() {
             {sel.vehiculo?.subtipo ? ` · ${sel.vehiculo.subtipo}` : ''}
             {sel.vehiculo?.placa ? ` · ${sel.vehiculo.placa}` : ''}
             {sel.rating ? ` · ★ ${Number(sel.rating).toFixed(1)}` : ''}
+            {hacePing(sel.updated_at) ? ` · 📡 ${hacePing(sel.updated_at)}` : ''}
           </Text>
           <View style={s.mapaDetalleMeta}>
             <View style={s.metaItem}>
