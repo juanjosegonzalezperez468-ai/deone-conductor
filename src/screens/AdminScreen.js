@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, TextInput,
-  StyleSheet, StatusBar, ActivityIndicator, Alert, Modal, RefreshControl,
+  StyleSheet, StatusBar, ActivityIndicator, Alert, Modal, RefreshControl, Linking,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { adminApi } from '../api/client';
@@ -12,6 +12,7 @@ import { SERVICES } from '../constants/services';
 
 const SECCIONES = [
   { key: 'mapa',        label: 'Mapa',        icon: '🗺️' },
+  { key: 'rutas',       label: 'Rutas',       icon: '📦' },
   { key: 'conductores', label: 'Conductores', icon: '👤' },
   { key: 'directorio',  label: 'Directorio',  icon: '👥' },
   { key: 'recargas',    label: 'Recargas',    icon: '💳' },
@@ -781,6 +782,202 @@ function MapaSection() {
   );
 }
 
+/* ─── Sección: Rutas de reparto ──────────────────── */
+
+const RUTA_ESTADOS = {
+  publicada:           { label: 'Publicada',              color: '#6B7280' },
+  aceptada:            { label: 'Aceptada',               color: '#3B82F6' },
+  en_recogida:         { label: 'En recogida',            color: '#3B82F6' },
+  en_reparto:          { label: 'En reparto',             color: '#3B82F6' },
+  finalizada:          { label: 'Finalizada ✔',          color: '#15803D' },
+  cancelada_cliente:   { label: 'Cancelada (cliente)',    color: '#B91C1C' },
+  cancelada_conductor: { label: 'Cancelada (conductor)',  color: '#B91C1C' },
+  expirada:            { label: 'Expirada',               color: '#6B7280' },
+};
+
+const fmtCOPr = (n) => Number(n || 0).toLocaleString('es-CO');
+const fmtFechaHora = (iso) => {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('es-CO', {
+    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+  });
+};
+
+function RutasAdminSection() {
+  const [rutas,      setRutas]      = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [detalle,    setDetalle]    = useState(null); // ruta con paradas y penalizaciones
+  const [cargandoDetalle, setCargandoDetalle] = useState(false);
+
+  const cargar = useCallback(async (esRefresh = false) => {
+    if (esRefresh) setRefreshing(true); else setLoading(true);
+    try {
+      const { data } = await adminApi.rutas();
+      setRutas(data.rutas || []);
+    } catch {
+      Alert.alert('Error', 'No se pudieron cargar las rutas.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => { cargar(); }, [cargar]);
+
+  const abrirDetalle = async (rutaId) => {
+    setCargandoDetalle(true);
+    try {
+      const { data } = await adminApi.rutaDetalle(rutaId);
+      setDetalle(data);
+    } catch {
+      Alert.alert('Error', 'No se pudo cargar el detalle de la ruta.');
+    } finally {
+      setCargandoDetalle(false);
+    }
+  };
+
+  if (loading) {
+    return <View style={s.centerWrap}><ActivityIndicator color={C.yellow} size="large" /></View>;
+  }
+
+  /* Vista detalle */
+  if (detalle) {
+    const est = RUTA_ESTADOS[detalle.estado] || { label: detalle.estado, color: C.gray };
+    return (
+      <ScrollView contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}>
+        <TouchableOpacity style={s.mapaToggleBtn} onPress={() => setDetalle(null)} activeOpacity={0.8}>
+          <Text style={s.mapaToggleTxt}>←  Volver al listado</Text>
+        </TouchableOpacity>
+
+        <View style={s.conductorCard}>
+          <View style={s.rutaDetalleHeader}>
+            <Text style={s.rutaDetalleTitulo}>
+              {detalle.numero_paradas} entrega{detalle.numero_paradas !== 1 ? 's' : ''} · {detalle.horas_cotizadas} h
+            </Text>
+            <View style={[s.estadoBadge, { backgroundColor: est.color + '22', borderColor: est.color }]}>
+              <Text style={[s.estadoBadgeTxt, { color: est.color }]}>{est.label}</Text>
+            </View>
+          </View>
+          <Text style={s.rutaDetalleLinea}>🏪 Cliente: {detalle.cliente_info?.nombre || '—'} · {detalle.cliente_info?.telefono || '—'}</Text>
+          <Text style={s.rutaDetalleLinea}>
+            🚚 Conductor: {detalle.conductor_info?.nombre || 'Sin asignar'}
+            {detalle.conductor_info?.telefono ? ` · ${detalle.conductor_info.telefono}` : ''}
+          </Text>
+          <Text style={s.rutaDetalleLinea}>📍 Recogida: {detalle.punto_recogida_direccion}</Text>
+          <Text style={s.rutaDetalleLinea}>
+            💰 ${fmtCOPr(detalle.valor_final || detalle.precio_total)}
+            {detalle.valor_excedente > 0 ? ` (incluye $${fmtCOPr(detalle.valor_excedente)} de excedente)` : ''}
+            {detalle.comision ? ` · comisión $${fmtCOPr(detalle.comision)}` : ''}
+          </Text>
+          <Text style={s.rutaDetalleLinea}>
+            🕐 {detalle.programada_para ? `Programada: ${fmtFechaHora(detalle.programada_para)}` : `Creada: ${fmtFechaHora(detalle.created_at)}`}
+            {detalle.hora_inicio_real ? ` · Inició: ${fmtFechaHora(detalle.hora_inicio_real)}` : ''}
+            {detalle.hora_fin_real ? ` · Terminó: ${fmtFechaHora(detalle.hora_fin_real)}` : ''}
+          </Text>
+          {detalle.valor_cancelacion > 0 && (
+            <Text style={s.rutaDetalleCancelacion}>
+              ⚠️ Multa de cancelación aplicada: ${fmtCOPr(detalle.valor_cancelacion)}
+              {detalle.motivo_cancelacion ? ` — ${detalle.motivo_cancelacion}` : ''}
+            </Text>
+          )}
+        </View>
+
+        <Text style={s.alertaSectionLbl}>PARADAS</Text>
+        {(detalle.paradas || []).map((p) => {
+          const pEst = p.estado === 'entregada'
+            ? { txt: 'Entregada ✓', color: '#15803D' }
+            : p.estado === 'pendiente'
+              ? { txt: 'Pendiente', color: '#6B7280' }
+              : { txt: p.estado === 'devuelta' ? 'Devuelta' : 'Fallida', color: '#B91C1C' };
+          return (
+            <View key={p.id} style={s.alertaCard}>
+              <Text style={s.rutaParadaOrden}>{p.orden}</Text>
+              <View style={s.alertaInfo}>
+                <Text style={s.alertaNombre} numberOfLines={1}>{p.direccion}</Text>
+                <Text style={s.alertaDetalle}>
+                  {p.nombre_destinatario || 'Sin destinatario'}
+                  {p.hora_salida ? ` · ${fmtFechaHora(p.hora_salida)}` : ''}
+                  {p.espera_cliente_min > 0 ? ` · ⏱ ${p.espera_cliente_min} min espera` : ''}
+                </Text>
+                {p.motivo_fallo ? <Text style={s.rutaMotivoFallo}>Motivo: {p.motivo_fallo}</Text> : null}
+              </View>
+              <View style={s.rutaParadaRight}>
+                <Text style={[s.estadoBadgeTxt, { color: pEst.color }]}>{pEst.txt}</Text>
+                {p.foto_url ? (
+                  <TouchableOpacity onPress={() => Linking.openURL(p.foto_url).catch(() => {})} activeOpacity={0.7}>
+                    <Text style={s.rutaFotoLink}>📷 Ver foto</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
+          );
+        })}
+
+        {(detalle.penalizaciones || []).length > 0 && (
+          <>
+            <Text style={s.alertaSectionLbl}>PENALIZACIONES DE ESTA RUTA</Text>
+            {detalle.penalizaciones.map((pen, i) => (
+              <View key={`${pen.created_at}-${i}`} style={s.alertaCard}>
+                <Text style={s.alertaIcon}>🚫</Text>
+                <View style={s.alertaInfo}>
+                  <Text style={s.alertaNombre}>{pen.accion || pen.tipo}</Text>
+                  <Text style={s.alertaDetalle}>
+                    {fmtFechaHora(pen.created_at)}
+                    {pen.cancelaciones_acumuladas ? ` · cancelación #${pen.cancelaciones_acumuladas} del mes` : ''}
+                    {pen.suspension_hasta ? ` · suspendido hasta ${fmtFechaHora(pen.suspension_hasta)}` : ''}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </>
+        )}
+      </ScrollView>
+    );
+  }
+
+  /* Vista listado */
+  return (
+    <ScrollView
+      contentContainerStyle={s.listContent}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => cargar(true)} colors={[C.yellow]} />}
+    >
+      {cargandoDetalle && <ActivityIndicator color={C.yellow} style={s.rutaDetalleLoading} />}
+      {rutas.length === 0 && (
+        <View style={s.emptyWrap}>
+          <Text style={s.emptyIcon}>📦</Text>
+          <Text style={s.emptyTxt}>Aún no hay rutas de reparto</Text>
+        </View>
+      )}
+      {rutas.map((r) => {
+        const est = RUTA_ESTADOS[r.estado] || { label: r.estado, color: C.gray };
+        return (
+          <TouchableOpacity key={r.id} style={s.dirCard} onPress={() => abrirDetalle(r.id)} activeOpacity={0.8}>
+            <View style={s.conductorAvatar}>
+              <Text style={s.conductorAvatarTxt}>📦</Text>
+            </View>
+            <View style={s.dirInfo}>
+              <Text style={s.conductorNombre} numberOfLines={1}>
+                {r.cliente_nombre || 'Cliente'} → {r.conductor_nombre || 'sin conductor'}
+              </Text>
+              <Text style={s.conductorTel}>
+                {r.paradas_entregadas}/{r.numero_paradas} entregas
+                {r.paradas_fallidas > 0 ? ` · ${r.paradas_fallidas} fallida${r.paradas_fallidas !== 1 ? 's' : ''}` : ''}
+                {' · $'}{fmtCOPr(r.valor_final || r.precio_total)}
+              </Text>
+              <Text style={s.rutaCardFecha}>{fmtFechaHora(r.programada_para || r.created_at)}</Text>
+            </View>
+            <View style={[s.estadoBadge, { backgroundColor: est.color + '22', borderColor: est.color }]}>
+              <Text style={[s.estadoBadgeTxt, { color: est.color }]}>{est.label}</Text>
+            </View>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 /* ─── Pantalla principal Admin ───────────────────── */
 
 export default function AdminScreen({ navigate, onMenuPress }) {
@@ -825,6 +1022,7 @@ export default function AdminScreen({ navigate, onMenuPress }) {
 
       {/* Contenido */}
       {seccion === 'mapa'        && <MapaSection />}
+      {seccion === 'rutas'       && <RutasAdminSection />}
       {seccion === 'conductores' && <ConductoresSection navigate={navigate} />}
       {seccion === 'directorio'  && <DirectorioSection navigate={navigate} />}
       {seccion === 'recargas'    && <RecargasSection />}
@@ -1214,6 +1412,36 @@ const s = StyleSheet.create({
     alignItems:      'center',
   },
   motivoConfirmTxt: { color: C.white, fontSize: 14, fontWeight: '700' },
+
+  /* Rutas admin */
+  rutaDetalleHeader: {
+    flexDirection:  'row',
+    alignItems:     'center',
+    justifyContent: 'space-between',
+    marginBottom:   10,
+  },
+  rutaDetalleTitulo: { fontSize: 17, fontWeight: '800', color: C.black, flex: 1, marginRight: 8 },
+  rutaDetalleLinea:  { fontSize: 13, color: C.black, lineHeight: 22 },
+  rutaDetalleCancelacion: {
+    fontSize:   13,
+    color:      '#B91C1C',
+    fontWeight: '600',
+    marginTop:  8,
+    lineHeight: 19,
+  },
+  rutaDetalleLoading: { marginBottom: 10 },
+  rutaParadaOrden: {
+    width:       26,
+    fontSize:    15,
+    fontWeight:  '800',
+    color:       C.gray,
+    textAlign:   'center',
+    marginRight: 10,
+  },
+  rutaMotivoFallo: { fontSize: 12, color: '#B91C1C', marginTop: 2 },
+  rutaParadaRight: { alignItems: 'flex-end', gap: 4 },
+  rutaFotoLink:    { fontSize: 12, color: C.black, fontWeight: '700', marginTop: 4 },
+  rutaCardFecha:   { fontSize: 11, color: C.gray, marginTop: 2 },
 
   /* Directorio */
   grupoWrap:   { marginBottom: 18 },

@@ -174,6 +174,8 @@ export const adminApi = {
   alertas:               ()        => api.get('/admin/alertas'),
   estadisticas:          ()        => api.get('/admin/estadisticas'),
   mapaConductores:       ()        => api.get('/admin/mapa-conductores'),
+  rutas:                 (estado)  => api.get('/admin/rutas', { params: estado ? { estado } : {} }),
+  rutaDetalle:           (id)      => api.get(`/admin/rutas/${id}`),
 };
 
 export default api;
