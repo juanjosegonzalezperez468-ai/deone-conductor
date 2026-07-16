@@ -171,6 +171,7 @@ export const adminApi = {
   rechazarDocumento:     (id, mot) => api.patch(`/admin/documento/${id}/rechazar`, { motivo: mot }),
   recargasPendientes:    ()        => api.get('/admin/recargas/pendientes'),
   aprobarRecarga:        (id)      => api.post(`/billing/aprobar/${id}`),
+  rechazarRecarga:       (id)      => api.post(`/billing/rechazar/${id}`),
   alertas:               ()        => api.get('/admin/alertas'),
   estadisticas:          ()        => api.get('/admin/estadisticas'),
   mapaConductores:       ()        => api.get('/admin/mapa-conductores'),

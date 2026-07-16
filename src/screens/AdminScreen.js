@@ -402,6 +402,32 @@ function RecargasSection() {
     }
   };
 
+  const rechazar = (r) => {
+    Alert.alert(
+      'Rechazar recarga',
+      `¿Rechazar la solicitud de $${Number(r.monto || 0).toLocaleString('es-CO')} de ${r.conductor?.nombre || 'este conductor'}? El conductor podrá enviar una nueva solicitud.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Rechazar',
+          style: 'destructive',
+          onPress: async () => {
+            setProcesando(r.id);
+            try {
+              await adminApi.rechazarRecarga(r.id);
+              Alert.alert('Rechazada', 'La recarga fue rechazada.');
+              cargar();
+            } catch {
+              Alert.alert('Error', 'No se pudo rechazar la recarga.');
+            } finally {
+              setProcesando(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const formatFecha = (iso) => {
     if (!iso) return '—';
     return new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -432,17 +458,27 @@ function RecargasSection() {
               <Text style={s.recargaFecha}>{formatFecha(r.created_at)}</Text>
             </View>
           </View>
-          <TouchableOpacity
-            style={procesando === r.id ? s.aprobarBtnDis : s.aprobarBtn}
-            onPress={() => aprobar(r.id)}
-            disabled={procesando === r.id}
-            activeOpacity={0.85}
-          >
-            {procesando === r.id
-              ? <ActivityIndicator color={C.black} size="small" />
-              : <Text style={s.aprobarBtnTxt}>APROBAR RECARGA</Text>
-            }
-          </TouchableOpacity>
+          <View style={s.actionRow}>
+            <TouchableOpacity
+              style={s.rechazarBtn}
+              onPress={() => rechazar(r)}
+              disabled={procesando === r.id}
+              activeOpacity={0.85}
+            >
+              <Text style={s.rechazarBtnTxt}>RECHAZAR</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={procesando === r.id ? s.aprobarBtnDis : s.aprobarBtn}
+              onPress={() => aprobar(r.id)}
+              disabled={procesando === r.id}
+              activeOpacity={0.85}
+            >
+              {procesando === r.id
+                ? <ActivityIndicator color={C.black} size="small" />
+                : <Text style={s.aprobarBtnTxt}>APROBAR RECARGA</Text>
+              }
+            </TouchableOpacity>
+          </View>
         </View>
       ))}
     </ScrollView>
