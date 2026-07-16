@@ -372,6 +372,7 @@ function DirectorioSection({ navigate }) {
 
 function RecargasSection() {
   const [recargas,   setRecargas]   = useState([]);
+  const [grupo,      setGrupo]      = useState('conductores'); // conductores | clientes
   const [loading,    setLoading]    = useState(true);
   const [procesando, setProcesando] = useState(null);
 
@@ -437,21 +438,50 @@ function RecargasSection() {
     return <View style={s.centerWrap}><ActivityIndicator color={C.yellow} size="large" /></View>;
   }
 
+  // Si el usuario no tiene tipo (dato viejo), se asume conductor.
+  const esCliente = (r) => r.conductor?.tipo === 'cliente';
+  const clientes    = recargas.filter(esCliente);
+  const conductores = recargas.filter((r) => !esCliente(r));
+  const lista = grupo === 'clientes' ? clientes : conductores;
+
   return (
     <ScrollView contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}>
-      {recargas.length === 0 && (
+      <View style={s.recargaTabs}>
+        {[
+          { key: 'conductores', label: `Conductores (${conductores.length})` },
+          { key: 'clientes',    label: `Clientes (${clientes.length})` },
+        ].map((t) => (
+          <TouchableOpacity
+            key={t.key}
+            style={grupo === t.key ? s.recargaTabActive : s.recargaTab}
+            onPress={() => setGrupo(t.key)}
+            activeOpacity={0.8}
+          >
+            <Text style={grupo === t.key ? s.recargaTabTxtActive : s.recargaTabTxt}>{t.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {lista.length === 0 && (
         <View style={s.emptyWrap}>
           <Text style={s.emptyIcon}>✅</Text>
-          <Text style={s.emptyTxt}>Sin recargas pendientes</Text>
+          <Text style={s.emptyTxt}>
+            {grupo === 'clientes' ? 'Sin recargas pendientes de clientes' : 'Sin recargas pendientes de conductores'}
+          </Text>
         </View>
       )}
 
-      {recargas.map((r) => (
+      {lista.map((r) => (
         <View key={r.id} style={s.recargaCard}>
           <View style={s.recargaTop}>
             <View>
               <Text style={s.recargaNombre}>{r.conductor?.nombre || r.conductor_id}</Text>
               <Text style={s.recargaTel}>{r.conductor?.telefono || '—'}</Text>
+              <View style={esCliente(r) ? s.tipoBadgeCliente : s.tipoBadgeConductor}>
+                <Text style={esCliente(r) ? s.tipoBadgeClienteTxt : s.tipoBadgeConductorTxt}>
+                  {esCliente(r) ? 'CLIENTE' : 'CONDUCTOR'}
+                </Text>
+              </View>
             </View>
             <View style={s.recargaMontoWrap}>
               <Text style={s.recargaMonto}>${Number(r.monto || 0).toLocaleString('es-CO')}</Text>
@@ -1316,6 +1346,52 @@ const s = StyleSheet.create({
     alignItems:      'center',
   },
   aprobarBtnTxt: { color: C.white, fontSize: 13, fontWeight: '800', letterSpacing: 0.5 },
+
+  /* Recargas: pestañas conductores/clientes */
+  recargaTabs: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+  recargaTab: {
+    flex:            1,
+    backgroundColor: C.white,
+    borderRadius:    12,
+    paddingVertical: 10,
+    alignItems:      'center',
+    borderWidth:     1,
+    borderColor:     C.border,
+  },
+  recargaTabActive: {
+    flex:            1,
+    backgroundColor: C.black,
+    borderRadius:    12,
+    paddingVertical: 10,
+    alignItems:      'center',
+    borderWidth:     1,
+    borderColor:     C.black,
+  },
+  recargaTabTxt:       { fontSize: 13, fontWeight: '600', color: C.gray },
+  recargaTabTxtActive: { fontSize: 13, fontWeight: '700', color: C.yellow },
+
+  tipoBadgeConductor: {
+    alignSelf:         'flex-start',
+    backgroundColor:   '#F0FDF4',
+    borderColor:       '#BBF7D0',
+    borderWidth:       1,
+    borderRadius:      8,
+    paddingHorizontal: 8,
+    paddingVertical:   2,
+    marginTop:         6,
+  },
+  tipoBadgeCliente: {
+    alignSelf:         'flex-start',
+    backgroundColor:   '#EFF6FF',
+    borderColor:       '#BFDBFE',
+    borderWidth:       1,
+    borderRadius:      8,
+    paddingHorizontal: 8,
+    paddingVertical:   2,
+    marginTop:         6,
+  },
+  tipoBadgeConductorTxt: { fontSize: 10, fontWeight: '800', letterSpacing: 1, color: '#15803D' },
+  tipoBadgeClienteTxt:   { fontSize: 10, fontWeight: '800', letterSpacing: 1, color: '#1D4ED8' },
 
   /* Recarga card */
   recargaCard: {
