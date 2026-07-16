@@ -8,6 +8,7 @@ import AsyncStorage                from '@react-native-async-storage/async-stora
 import * as Notifications          from 'expo-notifications';
 import * as Device                 from 'expo-device';
 import * as Location               from 'expo-location';
+import * as Application            from 'expo-application';
 import { fcmApi, conductorApi, servicesApi, locationsApi, vehiculoApi } from './src/api/client';
 import { getUserUuid }             from './src/utils/tokenStorage';
 import {
@@ -311,6 +312,9 @@ export default function App() {
                 {conductorNombre || 'Conductor'}
               </Text>
               <Text style={dr.sub}>Conductor Deone</Text>
+              <Text style={dr.version}>
+                v{Application.nativeBuildVersion || '—'}
+              </Text>
             </View>
 
             <View style={dr.sep} />
@@ -366,6 +370,7 @@ const dr = StyleSheet.create({
   avatarTxt: { color: '#111', fontSize: 30, fontWeight: '900' },
   nombre:    { color: '#111', fontSize: 18, fontWeight: '800', marginBottom: 4 },
   sub:       { color: '#888', fontSize: 13 },
+  version:   { color: '#BBB', fontSize: 11, marginTop: 2 },
   sep:       { height: 1, backgroundColor: '#F0F0F0', marginHorizontal: 16, marginBottom: 8 },
 });
 
