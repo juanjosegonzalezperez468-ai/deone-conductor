@@ -59,7 +59,7 @@ export default function TerminosScreen({ navigate }) {
         showsVerticalScrollIndicator
       >
         <Text style={s.seccion}>POLÍTICA DE PRIVACIDAD Y TÉRMINOS DE USO{'\n'}CONDUCTORES DEONE</Text>
-        <Text style={s.fecha}>Última actualización: julio de 2026</Text>
+        <Text style={s.fecha}>Última actualización: 28 de julio de 2026</Text>
 
         <Text style={s.parrafo}>
           DEONE es una plataforma tecnológica de intermediación que conecta conductores
@@ -99,9 +99,12 @@ export default function TerminosScreen({ navigate }) {
         <Text style={s.parrafo}>
           La aplicación accede a tu ubicación mientras está en primer plano para mostrarte
           solicitudes cercanas y para que el cliente pueda seguir tu recorrido durante el
-          servicio. No accedemos a tu ubicación en segundo plano cuando no tienes un servicio
-          activo. Puedes revocar este permiso en la configuración del dispositivo, aunque esto
-          impedirá el uso de la app.
+          servicio. Además, mientras mantienes activado el estado "disponible", accedemos a tu
+          ubicación en segundo plano —incluso con la app cerrada o sin usarse— para que los
+          clientes cercanos puedan verte y enviarte solicitudes; mientras esto ocurre verás una
+          notificación persistente en tu dispositivo. Esta recolección se detiene en cuanto
+          desactivas la disponibilidad. Puedes revocar el permiso de ubicación en la
+          configuración del dispositivo, aunque esto impedirá el uso de la app.
         </Text>
 
         <Text style={s.titulo2}>4. COMISIONES Y SALDO</Text>
@@ -135,7 +138,7 @@ export default function TerminosScreen({ navigate }) {
         <Text style={s.parrafo}>
           Conservamos tus datos mientras mantengas una cuenta activa en DEONE. Puedes
           solicitar la eliminación de tu cuenta y sus datos asociados escribiendo a
-          soporte@deone.co. Procederemos dentro de los 15 días hábiles siguientes a
+          juanjosegonzalezperez468@gmail.com. Procederemos dentro de los 15 días hábiles siguientes a
           la solicitud.
         </Text>
 
@@ -160,7 +163,7 @@ export default function TerminosScreen({ navigate }) {
         <Text style={s.titulo2}>10. CONTACTO</Text>
         <Text style={s.parrafo}>
           Para consultas sobre privacidad o datos personales:{'\n'}
-          soporte@deone.co
+          juanjosegonzalezperez468@gmail.com
         </Text>
 
         <View style={s.finalMarker}>
