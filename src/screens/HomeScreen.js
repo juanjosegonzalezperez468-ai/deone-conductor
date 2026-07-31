@@ -7,6 +7,7 @@ import * as Location from 'expo-location';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { conductorApi, locationsApi, billingApi, vehiculoApi } from '../api/client';
 import { getUserUuid } from '../utils/tokenStorage';
+import { solicitarUbicacionConAviso } from '../utils/locationDisclosure';
 import { C, SHADOW } from '../constants/theme';
 
 function isHoy(dateStr) {
@@ -50,7 +51,7 @@ export default function HomeScreen({ navigate }) {
 
   useEffect(() => {
     (async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await solicitarUbicacionConAviso();
       if (status === 'granted') {
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
         setLocation(loc.coords);
@@ -130,7 +131,7 @@ export default function HomeScreen({ navigate }) {
     if (value) {
       setLoadingToggle(true);
       try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
+        const { status } = await solicitarUbicacionConAviso({ reintentar: true });
         if (status !== 'granted') { setLoadingToggle(false); return; }
         const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
         setLocation(loc.coords);

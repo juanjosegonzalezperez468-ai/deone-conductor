@@ -9,6 +9,7 @@ import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { conductorApi, vehiculoApi, offersApi, locationsApi, servicesApi, billingApi } from '../api/client';
 import { SERVICES } from '../constants/services';
 import { getUserUuid } from '../utils/tokenStorage';
+import { solicitarUbicacionConAviso } from '../utils/locationDisclosure';
 import { C, SHADOW } from '../constants/theme';
 
 // Etiquetas legibles para el contexto de grúa / acarreo
@@ -128,7 +129,7 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
       } catch {}
 
       try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
+        const { status } = await solicitarUbicacionConAviso();
         if (status === 'granted') {
           watchSubRef.current = await Location.watchPositionAsync(
             { accuracy: Location.Accuracy.Balanced, timeInterval: 4000, distanceInterval: 15 },

@@ -14,6 +14,7 @@ import { getUserUuid }             from './src/utils/tokenStorage';
 import {
   iniciarUbicacionSegundoPlano, detenerUbicacionSegundoPlano, KEY_TIPO_SERVICIO,
 } from './src/utils/backgroundLocation';
+import { solicitarUbicacionConAviso } from './src/utils/locationDisclosure';
 import SplashScreen                from './src/screens/SplashScreen';
 import LoginScreen                 from './src/screens/LoginScreen';
 import OTPScreen                   from './src/screens/OTPScreen';
@@ -170,7 +171,7 @@ export default function App() {
 
     (async () => {
       try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
+        const { status } = await solicitarUbicacionConAviso();
         if (status !== 'granted') return;
         watchSub = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.Balanced, timeInterval: 8000, distanceInterval: 20 },
