@@ -7,7 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import auth from '@react-native-firebase/auth';
 import {
-  billingApi, conductorApi, documentosApi, vehiculoApi,
+  authApi, billingApi, conductorApi, documentosApi, vehiculoApi,
 } from '../api/client';
 import { getUserUuid, clearBackendToken, clearPhone, clearUserUuid } from '../utils/tokenStorage';
 import { detenerUbicacionSegundoPlano, KEY_TIPO_SERVICIO } from '../utils/backgroundLocation';
@@ -752,6 +752,56 @@ export default function CuentaScreen({ navigate, onMenuPress }) {
     );
   };
 
+  // Exigido por Google Play: la app debe ofrecer eliminar la cuenta y sus
+  // datos desde dentro. Doble confirmación porque es irreversible.
+  const handleEliminarCuenta = () => {
+    Alert.alert(
+      'Eliminar cuenta',
+      'Se borrarán tu acceso, tus datos personales, documentos y vehículo de ' +
+        'forma permanente. El historial de servicios se conserva de forma ' +
+        'anónima por razones contables.\n\nEsta acción no se puede deshacer.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Continuar',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              '¿Eliminar definitivamente?',
+              'Confirma que quieres eliminar tu cuenta de Deone Conductor.',
+              [
+                { text: 'No, conservar mi cuenta', style: 'cancel' },
+                {
+                  text: 'Sí, eliminar',
+                  style: 'destructive',
+                  onPress: async () => {
+                    try {
+                      await authApi.eliminarCuenta(uuidRef.current);
+                    } catch (err) {
+                      const msg = err?.response?.data?.detail ||
+                        'No se pudo eliminar la cuenta. Intenta de nuevo o escríbenos por WhatsApp.';
+                      Alert.alert('Error', msg);
+                      return;
+                    }
+                    await detenerUbicacionSegundoPlano();
+                    await Promise.all([
+                      clearBackendToken(), clearPhone(), clearUserUuid(),
+                      AsyncStorage.removeItem('conductor_disponible'),
+                      AsyncStorage.removeItem(KEY_TIPO_SERVICIO),
+                    ]);
+                    try { await auth().signOut(); } catch {}
+                    Alert.alert('Cuenta eliminada', 'Tu cuenta y tus datos personales fueron eliminados.');
+                    navigate('Login');
+                  },
+                },
+              ],
+            );
+          },
+        },
+      ],
+    );
+  };
+
   /* Sub-screen routing */
   if (subScreen === 'perfil') {
     return <PerfilView perfil={perfil} conductorId={uuidRef.current} onBack={back} onSave={fetchPerfil} />;
@@ -908,6 +958,11 @@ export default function CuentaScreen({ navigate, onMenuPress }) {
         {/* Cerrar sesión */}
         <TouchableOpacity style={s.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
           <Text style={s.logoutTxt}>Cerrar sesión</Text>
+        </TouchableOpacity>
+
+        {/* Eliminar cuenta (requisito de Google Play) */}
+        <TouchableOpacity style={s.deleteBtn} onPress={handleEliminarCuenta} activeOpacity={0.8}>
+          <Text style={s.deleteTxt}>Eliminar mi cuenta</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -1107,6 +1162,13 @@ const s = StyleSheet.create({
     alignItems:     'center',
   },
   logoutTxt: { color: C.red, fontSize: 15, fontWeight: '700' },
+
+  deleteBtn: {
+    marginBottom:    8,
+    paddingVertical: 12,
+    alignItems:      'center',
+  },
+  deleteTxt: { color: C.gray, fontSize: 13, textDecorationLine: 'underline' },
 
   /* ── Shared sub-screen elements ── */
   avatarTouch: { alignSelf: 'center' },

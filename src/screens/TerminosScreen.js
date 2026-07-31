@@ -137,9 +137,11 @@ export default function TerminosScreen({ navigate }) {
         <Text style={s.titulo2}>7. RETENCIÓN Y ELIMINACIÓN DE DATOS</Text>
         <Text style={s.parrafo}>
           Conservamos tus datos mientras mantengas una cuenta activa en DEONE. Puedes
-          solicitar la eliminación de tu cuenta y sus datos asociados escribiendo a
-          juanjosegonzalezperez468@gmail.com. Procederemos dentro de los 15 días hábiles siguientes a
-          la solicitud.
+          eliminar tu cuenta y tus datos personales en cualquier momento desde la app,
+          en Mi cuenta → "Eliminar mi cuenta". El historial de servicios y comisiones se
+          conserva de forma anónima por razones contables. También puedes solicitar la
+          eliminación escribiendo a juanjosegonzalezperez468@gmail.com; procederemos dentro
+          de los 15 días hábiles siguientes a la solicitud.
         </Text>
 
         <Text style={s.titulo2}>8. DERECHOS BAJO LA LEY 1581 DE 2012</Text>

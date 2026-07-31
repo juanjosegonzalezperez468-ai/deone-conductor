@@ -98,6 +98,7 @@ export const billingApi = {
 export const authApi = {
   verificarOtp:    (data) => api.post('/auth/verificar-otp', data),
   aceptarTerminos: (uid)  => api.patch(`/auth/perfil/${uid}/terminos`),
+  eliminarCuenta:  (uid)  => api.delete(`/auth/cuenta/${uid}`),
 };
 
 export const servicesApi = {
