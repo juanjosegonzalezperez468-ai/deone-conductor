@@ -15,6 +15,7 @@ import {
   iniciarUbicacionSegundoPlano, detenerUbicacionSegundoPlano, KEY_TIPO_SERVICIO,
 } from './src/utils/backgroundLocation';
 import { solicitarUbicacionConAviso } from './src/utils/locationDisclosure';
+import { solicitarNotificacionesConAviso } from './src/utils/notificationDisclosure';
 import SplashScreen                from './src/screens/SplashScreen';
 import LoginScreen                 from './src/screens/LoginScreen';
 import OTPScreen                   from './src/screens/OTPScreen';
@@ -60,12 +61,7 @@ async function registrarFCMToken() {
         sound:            true,
       });
     }
-    const { status: existing } = await Notifications.getPermissionsAsync();
-    let finalStatus = existing;
-    if (existing !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
+    const { status: finalStatus } = await solicitarNotificacionesConAviso();
     if (finalStatus !== 'granted') return;
     const { data: token } = await Notifications.getDevicePushTokenAsync();
     await fcmApi.registrar(backendUuid, token);

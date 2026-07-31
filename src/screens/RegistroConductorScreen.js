@@ -7,6 +7,7 @@ import {
 import * as Notifications from 'expo-notifications';
 import { authApi, fcmApi } from '../api/client';
 import { storeBackendToken, storePhone, storeUserUuid } from '../utils/tokenStorage';
+import { solicitarNotificacionesConAviso } from '../utils/notificationDisclosure';
 import { C, SHADOW } from '../constants/theme';
 
 const VEHICLES = [
@@ -41,7 +42,7 @@ export default function RegistroConductorScreen({ navigate, params }) {
       await storeUserUuid(data.usuario.id);
       await storePhone(phone);
       try {
-        const { status } = await Notifications.requestPermissionsAsync();
+        const { status } = await solicitarNotificacionesConAviso();
         if (status === 'granted') {
           const pushToken = await Notifications.getDevicePushTokenAsync();
           await fcmApi.registrar(data.usuario.id, pushToken.data);

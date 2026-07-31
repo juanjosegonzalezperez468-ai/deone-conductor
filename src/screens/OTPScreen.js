@@ -7,6 +7,7 @@ import auth from '@react-native-firebase/auth';
 import * as Notifications from 'expo-notifications';
 import { authApi, fcmApi } from '../api/client';
 import { storeBackendToken, storePhone, storeUserUuid } from '../utils/tokenStorage';
+import { solicitarNotificacionesConAviso } from '../utils/notificationDisclosure';
 import { C } from '../constants/theme';
 
 function mensajeErrorOtp(e) {
@@ -87,7 +88,7 @@ export default function OTPScreen({ navigate, params }) {
         await storeBackendToken(data.token);
         await storeUserUuid(data.usuario.id);
         try {
-          const { status } = await Notifications.requestPermissionsAsync();
+          const { status } = await solicitarNotificacionesConAviso();
           if (status === 'granted') {
             const pushToken = await Notifications.getDevicePushTokenAsync();
             await fcmApi.registrar(data.usuario.id, pushToken.data);
