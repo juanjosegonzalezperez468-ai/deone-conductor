@@ -580,61 +580,255 @@ function AlertasSection() {
 
 /* ─── Sección: Estadísticas ──────────────────────── */
 
-function EstadisticasSection() {
-  const [stats,   setStats]   = useState(null);
-  const [loading, setLoading] = useState(true);
+const RANGOS = [
+  { dias: 7,  label: '7 días'  },
+  { dias: 30, label: '30 días' },
+  { dias: 90, label: '90 días' },
+];
 
-  useEffect(() => {
-    adminApi.estadisticas()
-      .then(({ data }) => setStats(data))
-      .catch(() => setStats(null))
+const fmtN = (n) => Number(n || 0).toLocaleString('es-CO');
+const fmtCOP = (n) => `$${fmtN(n)}`;
+
+// Fila del embudo: el ancho de la barra es proporcional al total de solicitudes,
+// así se ve de un vistazo en qué escalón se cae la demanda.
+function EmbudoFila({ label, valor, total, pct }) {
+  const ancho = total > 0 ? Math.max((valor / total) * 100, 4) : 4;
+  return (
+    <View style={s.embudoFila}>
+      <Text style={s.embudoLbl} numberOfLines={1}>{label}</Text>
+      <View style={s.embudoTrack}>
+        <View style={[s.embudoBarra, { width: `${ancho}%` }]}>
+          <Text style={s.embudoNum}>{fmtN(valor)}</Text>
+        </View>
+      </View>
+      <Text style={s.embudoPct}>{pct}%</Text>
+    </View>
+  );
+}
+
+function EstadisticasSection() {
+  const [m,       setM]       = useState(null);
+  const [dias,    setDias]    = useState(30);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
+
+  const cargar = useCallback((d) => {
+    setLoading(true);
+    setError(null);
+    adminApi.metricas(d)
+      .then(({ data }) => setM(data))
+      .catch((e) => {
+        setM(null);
+        setError(e?.response?.data?.detail || 'No se pudieron cargar las métricas');
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { cargar(dias); }, [dias, cargar]);
 
   if (loading) {
     return <View style={s.centerWrap}><ActivityIndicator color={C.yellow} size="large" /></View>;
   }
 
-  if (!stats) {
+  if (!m) {
     return (
       <View style={s.emptyWrap}>
-        <Text style={s.emptyTxt}>No se pudieron cargar las estadísticas</Text>
+        <Text style={s.emptyTxt}>{error}</Text>
       </View>
     );
   }
 
-  const fmt = (n) => Number(n || 0).toLocaleString('es-CO');
+  const { embudo: f, demanda: d, dinero: din, registros: r, oferta: o, tiempos: t, retencion: ret } = m;
+
+  const segAcep = t.mediana_seg_hasta_aceptacion;
+  const tiempoAcep = segAcep == null ? '—'
+    : segAcep < 60 ? `${Math.round(segAcep)} s` : `${(segAcep / 60).toFixed(1)} min`;
 
   return (
     <ScrollView contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}>
-      <View style={s.statsGrid}>
-        <View style={s.statCardYellow}>
-          <Text style={s.statNum}>{fmt(stats.conductores_activos)}</Text>
-          <Text style={s.statLbl}>Conductores activos</Text>
+      {/* Selector de rango */}
+      <View style={s.rangoRow}>
+        {RANGOS.map((rg) => (
+          <TouchableOpacity
+            key={rg.dias}
+            style={dias === rg.dias ? s.rangoChipActivo : s.rangoChip}
+            onPress={() => setDias(rg.dias)}
+            activeOpacity={0.8}
+          >
+            <Text style={dias === rg.dias ? s.rangoTxtActivo : s.rangoTxt}>{rg.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Demanda perdida: lo único que exige acción inmediata, va primero */}
+      {d.expiradas_sin_oferta > 0 ? (
+        <View style={s.avisoMalo}>
+          <Text style={s.avisoTitulo}>
+            {fmtN(d.expiradas_sin_oferta)} solicitudes murieron sin que nadie ofertara
+          </Text>
+          <Text style={s.avisoTxt}>
+            Es el {d.pct_expiradas_sin_oferta}% de la demanda. Clientes que pidieron y
+            nadie respondió: falta de conductores conectados, no de clientes.
+          </Text>
         </View>
-        <View style={s.statCardWhite}>
-          <Text style={s.statNum}>{fmt(stats.servicios_hoy)}</Text>
-          <Text style={s.statLbl}>Servicios hoy</Text>
+      ) : (
+        <View style={s.avisoBueno}>
+          <Text style={s.avisoTitulo}>Toda la demanda recibió al menos una oferta</Text>
+          <Text style={s.avisoTxt}>Ninguna solicitud se perdió por falta de conductores.</Text>
+        </View>
+      )}
+
+      {/* Embudo */}
+      <Text style={s.statsSectionLbl}>EMBUDO DE LA DEMANDA</Text>
+      <View style={s.comisionCard}>
+        <View style={s.embudoWrap}>
+          <EmbudoFila label="Solicitudes" valor={f.solicitudes}  total={f.solicitudes} pct={100} />
+          <EmbudoFila label="Con oferta"  valor={f.con_oferta}   total={f.solicitudes} pct={f.pct_con_oferta} />
+          <EmbudoFila label="Confirmadas" valor={f.confirmadas}  total={f.solicitudes} pct={f.pct_confirmadas} />
+          <EmbudoFila label="Completadas" valor={f.completadas}  total={f.solicitudes} pct={f.pct_completadas} />
         </View>
       </View>
 
-      <Text style={s.statsSectionLbl}>COMISIONES GENERADAS</Text>
-      <View style={s.comisionCard}>
-        <View style={s.comisionRow}>
-          <Text style={s.comisionLbl}>Hoy</Text>
-          <Text style={s.comisionVal}>${fmt(stats.comisiones_hoy)}</Text>
+      <View style={s.statsGrid}>
+        <View style={s.statCardYellow}>
+          <Text style={s.statNum}>{fmtN(d.total)}</Text>
+          <Text style={s.statLbl}>Solicitudes recibidas</Text>
         </View>
-        <View style={s.comisionSep} />
-        <View style={s.comisionRow}>
-          <Text style={s.comisionLbl}>Esta semana</Text>
-          <Text style={s.comisionVal}>${fmt(stats.comisiones_semana)}</Text>
-        </View>
-        <View style={s.comisionSep} />
-        <View style={s.comisionRow}>
-          <Text style={s.comisionLbl}>Este mes</Text>
-          <Text style={s.comisionVal}>${fmt(stats.comisiones_mes)}</Text>
+        <View style={s.statCardWhite}>
+          <Text style={s.statNum}>{fmtN(d.completados)}</Text>
+          <Text style={s.statLbl}>Servicios completados</Text>
         </View>
       </View>
+
+      <View style={s.statsGrid}>
+        <View style={s.statCardWhite}>
+          <Text style={s.statNum}>{d.tasa_cancelacion}%</Text>
+          <Text style={s.statLbl}>Cancelación ({fmtN(d.cancelados)})</Text>
+        </View>
+        <View style={s.statCardWhite}>
+          <Text style={s.statNum}>{fmtN(d.abiertos_ahora)}</Text>
+          <Text style={s.statLbl}>Servicios en curso</Text>
+        </View>
+      </View>
+
+      <Text style={s.statsSectionLbl}>DINERO DEL PERIODO</Text>
+      <View style={s.comisionCard}>
+        <View style={s.comisionRow}>
+          <Text style={s.comisionLbl}>Facturado por clientes (GMV)</Text>
+          <Text style={s.comisionVal}>{fmtCOP(din.gmv)}</Text>
+        </View>
+        <View style={s.comisionSep} />
+        <View style={s.comisionRow}>
+          <Text style={s.comisionLbl}>Comisiones de Deone</Text>
+          <Text style={s.comisionVal}>{fmtCOP(din.comisiones)}</Text>
+        </View>
+        <View style={s.comisionSep} />
+        <View style={s.comisionRow}>
+          <Text style={s.comisionLbl}>Ticket promedio</Text>
+          <Text style={s.comisionVal}>{fmtCOP(din.ticket_promedio)}</Text>
+        </View>
+        <View style={s.comisionSep} />
+        <View style={s.comisionRow}>
+          <Text style={s.comisionLbl}>Saldo sin consumir</Text>
+          <Text style={s.comisionVal}>{fmtCOP(din.saldo_en_circulacion)}</Text>
+        </View>
+      </View>
+
+      <Text style={s.statsSectionLbl}>CONDUCTORES</Text>
+      <View style={s.comisionCard}>
+        <View style={s.comisionRow}>
+          <Text style={s.comisionLbl}>Aprobados</Text>
+          <Text style={s.comisionVal}>{fmtN(o.conductores_activos)}</Text>
+        </View>
+        <View style={s.comisionSep} />
+        <View style={s.comisionRow}>
+          <Text style={s.comisionLbl}>Conectados ahora</Text>
+          <Text style={s.comisionVal}>{o.disponibles_ahora == null ? '—' : fmtN(o.disponibles_ahora)}</Text>
+        </View>
+        <View style={s.comisionSep} />
+        <View style={s.comisionRow}>
+          <Text style={s.comisionLbl}>Trabajaron en el periodo</Text>
+          <Text style={s.comisionVal}>{fmtN(o.conductores_trabajando)}</Text>
+        </View>
+        <View style={s.comisionSep} />
+        <View style={s.comisionRow}>
+          <Text style={s.comisionLbl}>Aprobados sin un solo viaje</Text>
+          <Text style={[s.comisionVal, o.activos_sin_trabajar > 0 && { color: C.red }]}>
+            {fmtN(o.activos_sin_trabajar)}
+          </Text>
+        </View>
+      </View>
+
+      <Text style={s.statsSectionLbl}>REGISTROS DEL PERIODO</Text>
+      <View style={s.comisionCard}>
+        <View style={s.comisionRow}>
+          <Text style={s.comisionLbl}>Clientes nuevos</Text>
+          <Text style={s.comisionVal}>{fmtN(r.clientes_nuevos)}</Text>
+        </View>
+        <View style={s.comisionSep} />
+        <View style={s.comisionRow}>
+          <Text style={s.comisionLbl}>Conductores nuevos</Text>
+          <Text style={s.comisionVal}>{fmtN(r.conductores_nuevos)}</Text>
+        </View>
+        <View style={s.comisionSep} />
+        <View style={s.comisionRow}>
+          <Text style={s.comisionLbl}>Pendientes de aprobar</Text>
+          <Text style={s.comisionVal}>{fmtN(r.onboarding_conductores?.pendiente)}</Text>
+        </View>
+        <View style={s.comisionSep} />
+        <View style={s.comisionRow}>
+          <Text style={s.comisionLbl}>Nunca completaron un viaje</Text>
+          <Text style={s.comisionVal}>{fmtN(r.conductores_sin_servicio)}</Text>
+        </View>
+      </View>
+
+      <Text style={s.statsSectionLbl}>OPERACIÓN</Text>
+      <View style={s.comisionCard}>
+        <View style={s.comisionRow}>
+          <Text style={s.comisionLbl}>Mediana hasta aceptación</Text>
+          <Text style={s.comisionVal}>{tiempoAcep}</Text>
+        </View>
+        <View style={s.comisionSep} />
+        <View style={s.comisionRow}>
+          <Text style={s.comisionLbl}>Duración mediana del viaje</Text>
+          <Text style={s.comisionVal}>
+            {t.mediana_min_servicio == null ? '—' : `${Math.round(t.mediana_min_servicio)} min`}
+          </Text>
+        </View>
+        <View style={s.comisionSep} />
+        <View style={s.comisionRow}>
+          <Text style={s.comisionLbl}>Clientes que repiten</Text>
+          <Text style={s.comisionVal}>{ret.pct_repiten}%</Text>
+        </View>
+      </View>
+
+      <Text style={s.statsSectionLbl}>POR TIPO DE SERVICIO</Text>
+      <View style={s.comisionCard}>
+        {(d.por_tipo || []).map((x, i) => (
+          <View key={x.tipo}>
+            {i > 0 && <View style={s.comisionSep} />}
+            <View style={s.comisionRow}>
+              <Text style={s.comisionLbl}>
+                {iconoServicio(x.tipo)} {labelServicio(x.tipo)}
+              </Text>
+              <Text style={s.comisionVal}>
+                {fmtN(x.completadas)}/{fmtN(x.creadas)}
+                <Text style={s.tipoPct}>  {x.pct_completadas}%</Text>
+              </Text>
+            </View>
+          </View>
+        ))}
+        {!(d.por_tipo || []).length && (
+          <View style={s.comisionRow}>
+            <Text style={s.comisionLbl}>Sin solicitudes en el periodo</Text>
+          </View>
+        )}
+      </View>
+
+      <Text style={s.piePanel}>
+        Para el detalle completo (gráficas por día y hora, motivos de cancelación,
+        línea de tiempo de eventos) abre el panel web en /panel desde un computador.
+      </Text>
     </ScrollView>
   );
 }
@@ -1580,4 +1774,73 @@ const s = StyleSheet.create({
     paddingVertical:   4,
   },
   estadoBadgeTxt: { fontSize: 11, fontWeight: '700' },
+
+  /* Métricas — selector de rango */
+  rangoRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  rangoChip: {
+    flex:              1,
+    backgroundColor:   C.white,
+    borderRadius:      12,
+    paddingVertical:   9,
+    alignItems:        'center',
+    borderWidth:       1,
+    borderColor:       C.border,
+  },
+  rangoChipActivo: {
+    flex:            1,
+    backgroundColor: C.black,
+    borderRadius:    12,
+    paddingVertical: 9,
+    alignItems:      'center',
+    borderWidth:     1,
+    borderColor:     C.black,
+  },
+  rangoTxt:       { fontSize: 13, fontWeight: '600', color: C.gray },
+  rangoTxtActivo: { fontSize: 13, fontWeight: '700', color: C.white },
+
+  /* Métricas — avisos */
+  avisoMalo: {
+    backgroundColor: C.redBg,
+    borderLeftWidth: 4,
+    borderLeftColor: C.red,
+    borderRadius:    12,
+    padding:         14,
+    marginBottom:    20,
+  },
+  avisoBueno: {
+    backgroundColor: C.greenBg,
+    borderLeftWidth: 4,
+    borderLeftColor: C.green,
+    borderRadius:    12,
+    padding:         14,
+    marginBottom:    20,
+  },
+  avisoTitulo: { fontSize: 14, fontWeight: '800', color: C.black, marginBottom: 4 },
+  avisoTxt:    { fontSize: 12, color: C.gray, lineHeight: 17 },
+
+  /* Métricas — embudo */
+  embudoWrap:  { paddingHorizontal: 18, paddingVertical: 16, gap: 10 },
+  embudoFila:  { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  embudoLbl:   { fontSize: 12, color: C.gray, width: 78 },
+  embudoTrack: { flex: 1, height: 28, justifyContent: 'center' },
+  embudoBarra: {
+    height:          28,
+    backgroundColor: C.yellow,
+    borderRadius:    7,
+    justifyContent:  'center',
+    paddingHorizontal: 8,
+    minWidth:        34,
+  },
+  embudoNum: { fontSize: 12, fontWeight: '800', color: C.black },
+  embudoPct: { fontSize: 11, color: C.gray, width: 42, textAlign: 'right' },
+
+  tipoPct:   { fontSize: 12, color: C.gray, fontWeight: '600' },
+  piePanel:  {
+    fontSize:   11,
+    color:      C.gray,
+    lineHeight: 16,
+    textAlign:  'center',
+    marginTop:  20,
+    paddingHorizontal: 10,
+  },
 });
