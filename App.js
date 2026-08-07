@@ -204,6 +204,28 @@ export default function App() {
           }
         } catch {}
       }
+
+      // Notificación de solicitud nueva: abrir la carrera concreta, no la lista.
+      //
+      // Antes esto caía en setScreen('App') y el conductor aterrizaba en el
+      // listado teniendo que buscar la carrera a mano —y si la lista aún no
+      // había refrescado, ni aparecía—. El mapa, la distancia y el botón de
+      // contraoferta quedaban a dos toques de distancia, que es justo el
+      // tiempo en el que otro conductor te gana la carrera.
+      //
+      // Se comprueba que siga disponible antes de abrirla: si otro la tomó
+      // mientras sonaba el teléfono, es mejor caer en la lista que abrir el
+      // detalle de una carrera muerta.
+      if (data?.service_id) {
+        try {
+          const { data: solicitud } = await servicesApi.obtener(data.service_id);
+          if (solicitud && ['pendiente', 'negociando'].includes(solicitud.estado)) {
+            navigate('App', { abrirSolicitudId: data.service_id });
+            return;
+          }
+        } catch {}
+      }
+
       setScreen('App');
     };
 
@@ -283,6 +305,7 @@ export default function App() {
         disponible={disponible}
         onDisponibleChange={cambiarDisponible}
         onMenuPress={abrirDrawer}
+        abrirSolicitudId={screenParams.abrirSolicitudId}
       />
     );
   }

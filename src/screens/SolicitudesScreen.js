@@ -90,7 +90,7 @@ function haversineKm(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDisponibleChange, onMenuPress }) {
+export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDisponibleChange, onMenuPress, abrirSolicitudId }) {
   const [solicitudes,    setSolicitudes]    = useState([]);
   const [loading,        setLoading]        = useState(true);
   const [tipoServicio,   setTipoServicio]   = useState(null);
@@ -246,6 +246,33 @@ export default function SolicitudesScreen({ navigate, isAdmin, disponible, onDis
     setEsperando(false);
     setPrecioContra('');
   };
+
+  // Llegada desde la notificación: abrir directamente el detalle de esa carrera
+  // —con su mapa, distancia y contraoferta— sin que el conductor la busque en
+  // la lista. Se pide al backend en vez de buscarla en `solicitudes` porque el
+  // primer poll puede no haber llegado todavía, o la carrera puede caer fuera
+  // del radio de 5 km que filtra la lista.
+  const abiertaDesdeNotif = useRef(null);
+  useEffect(() => {
+    if (!abrirSolicitudId || abiertaDesdeNotif.current === abrirSolicitudId) return;
+    abiertaDesdeNotif.current = abrirSolicitudId;
+    let cancelado = false;
+    (async () => {
+      try {
+        const { data } = await servicesApi.obtener(abrirSolicitudId);
+        if (cancelado || !data) return;
+        if (!['pendiente', 'negociando'].includes(data.estado)) {
+          Alert.alert('Carrera no disponible', 'Otro conductor la tomó o el cliente la canceló.');
+          return;
+        }
+        abrirDetalle(data);
+      } catch {
+        // Sin conexión o carrera inexistente: se queda en la lista, que es
+        // un destino razonable. No se molesta al conductor con un error.
+      }
+    })();
+    return () => { cancelado = true; };
+  }, [abrirSolicitudId]);
 
   // El conductor decide seguir viendo otras carreras mientras el cliente
   // responde a la contraoferta; la oferta sigue activa (pendingOfferId).
