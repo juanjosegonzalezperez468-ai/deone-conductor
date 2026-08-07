@@ -759,18 +759,35 @@ function EstadisticasSection() {
         </View>
       </View>
 
-      <Text style={s.statsSectionLbl}>REGISTROS DEL PERIODO</Text>
+      <Text style={s.statsSectionLbl}>USUARIOS REGISTRADOS</Text>
       <View style={s.comisionCard}>
         <View style={s.comisionRow}>
-          <Text style={s.comisionLbl}>Clientes nuevos</Text>
-          <Text style={s.comisionVal}>{fmtN(r.clientes_nuevos)}</Text>
+          <Text style={s.comisionLbl}>Clientes</Text>
+          <Text style={s.comisionVal}>
+            {fmtN(r.total_clientes)}
+            <Text style={s.tipoPct}>  +{fmtN(r.clientes_nuevos)}</Text>
+          </Text>
         </View>
         <View style={s.comisionSep} />
         <View style={s.comisionRow}>
-          <Text style={s.comisionLbl}>Conductores nuevos</Text>
-          <Text style={s.comisionVal}>{fmtN(r.conductores_nuevos)}</Text>
+          <Text style={s.comisionLbl}>Conductores</Text>
+          <Text style={s.comisionVal}>
+            {fmtN(r.total_conductores)}
+            <Text style={s.tipoPct}>  +{fmtN(r.conductores_nuevos)}</Text>
+          </Text>
         </View>
         <View style={s.comisionSep} />
+        <View style={s.comisionRow}>
+          <Text style={[s.comisionLbl, { fontWeight: '700', color: C.black }]}>Total</Text>
+          <Text style={s.comisionVal}>{fmtN(r.total_usuarios)}</Text>
+        </View>
+      </View>
+      <Text style={s.notaSeccion}>
+        Cada persona cuenta una sola vez; el número pequeño son los nuevos del periodo.
+      </Text>
+
+      <Text style={s.statsSectionLbl}>ONBOARDING DE CONDUCTORES</Text>
+      <View style={s.comisionCard}>
         <View style={s.comisionRow}>
           <Text style={s.comisionLbl}>Pendientes de aprobar</Text>
           <Text style={s.comisionVal}>{fmtN(r.onboarding_conductores?.pendiente)}</Text>
@@ -1835,6 +1852,14 @@ const s = StyleSheet.create({
   embudoPct: { fontSize: 11, color: C.gray, width: 42, textAlign: 'right' },
 
   tipoPct:   { fontSize: 12, color: C.gray, fontWeight: '600' },
+  notaSeccion: {
+    fontSize:   11,
+    color:      C.gray,
+    lineHeight: 15,
+    marginTop:  8,
+    marginBottom: 4,
+    paddingHorizontal: 4,
+  },
   piePanel:  {
     fontSize:   11,
     color:      C.gray,
