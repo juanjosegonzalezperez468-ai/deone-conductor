@@ -194,6 +194,9 @@ export const adminApi = {
   eventos:               (limite)  => api.get('/admin/eventos', { params: { limite: limite || 50 } }),
   mapaConductores:       ()        => api.get('/admin/mapa-conductores'),
   solicitudesVivo:       ()        => api.get('/admin/solicitudes-vivo'),
+  vehiculosPendientes:   ()        => api.get('/admin/vehiculos/pendientes'),
+  aprobarVehiculo:       (id)      => api.patch(`/admin/vehiculo/${id}/aprobar`),
+  rechazarVehiculo:      (id, mot) => api.patch(`/admin/vehiculo/${id}/rechazar`, { motivo: mot }),
   rutas:                 (estado)  => api.get('/admin/rutas', { params: estado ? { estado } : {} }),
   rutaDetalle:           (id)      => api.get(`/admin/rutas/${id}`),
 };

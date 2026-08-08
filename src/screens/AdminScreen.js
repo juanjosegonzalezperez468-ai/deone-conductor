@@ -93,14 +93,24 @@ function ConductoresSection({ navigate }) {
   const [procesando,      setProcesando]      = useState(null);
   const [motivoModal,     setMotivoModal]     = useState(null);
 
+  const [vehiculosPend, setVehiculosPend] = useState([]);
+
   const cargar = useCallback(async () => {
     setLoading(true);
     try {
-      const [pendientesRes, documentosRes] = await Promise.all([
+      const [pendientesRes, documentosRes, vehiculosRes] = await Promise.all([
         adminApi.conductoresPendientes(),
         adminApi.documentosPendientes(),
+        adminApi.vehiculosPendientes().catch(() => ({ data: { vehiculos: [] } })),
       ]);
       setConductores(pendientesRes.data.conductores || []);
+      // Solo los vehículos ADICIONALES de conductores ya aprobados: el
+      // vehículo del registro inicial se aprueba junto con el conductor, más
+      // arriba, y mostrarlo aquí duplicaría el trabajo.
+      setVehiculosPend(
+        (vehiculosRes.data.vehiculos || [])
+          .filter((v) => v.conductor?.estado_cuenta === 'activo')
+      );
       // Solo interesan documentos de conductores YA aprobados (activo) que
       // subieron una actualización (p. ej. SOAT renovado). Los que están en
       // registro inicial se revisan arriba; los rechazados no aplican aquí.
@@ -143,6 +153,33 @@ function ConductoresSection({ navigate }) {
     }
   };
 
+  const aprobarVeh = async (v) => {
+    setProcesando(v.id + '_aprobar');
+    try {
+      await adminApi.aprobarVehiculo(v.id);
+      Alert.alert('Aprobado', `${v.marca} ${v.modelo} habilitado. El conductor ya puede usarlo.`);
+      cargar();
+    } catch {
+      Alert.alert('Error', 'No se pudo aprobar el vehículo.');
+    } finally {
+      setProcesando(null);
+    }
+  };
+
+  const rechazarVeh = async (id, motivo) => {
+    setMotivoModal(null);
+    setProcesando(id + '_rechazar');
+    try {
+      await adminApi.rechazarVehiculo(id, motivo);
+      Alert.alert('Rechazado', 'El conductor recibirá el motivo.');
+      cargar();
+    } catch {
+      Alert.alert('Error', 'No se pudo rechazar el vehículo.');
+    } finally {
+      setProcesando(null);
+    }
+  };
+
   const formatFecha = (iso) => {
     if (!iso) return '—';
     return new Date(iso).toLocaleDateString('es-CO', {
@@ -163,13 +200,15 @@ function ConductoresSection({ navigate }) {
       {motivoModal && (
         <MotivoModal
           visible
-          titulo="Motivo de rechazo"
-          onConfirm={(m) => rechazar(motivoModal, m)}
+          titulo={motivoModal.tipo === 'vehiculo' ? 'Motivo del rechazo del vehículo' : 'Motivo de rechazo'}
+          onConfirm={(m) => (motivoModal.tipo === 'vehiculo'
+            ? rechazarVeh(motivoModal.id, m)
+            : rechazar(motivoModal.id, m))}
           onCancel={() => setMotivoModal(null)}
         />
       )}
 
-      {conductores.length === 0 && documentosPend.length === 0 && (
+      {conductores.length === 0 && documentosPend.length === 0 && vehiculosPend.length === 0 && (
         <View style={s.emptyWrap}>
           <Text style={s.emptyIcon}>✅</Text>
           <Text style={s.emptyTxt}>Sin conductores pendientes</Text>
@@ -218,7 +257,7 @@ function ConductoresSection({ navigate }) {
           <View style={s.actionRow}>
             <TouchableOpacity
               style={s.rechazarBtn}
-              onPress={() => setMotivoModal(c.id)}
+              onPress={() => setMotivoModal({ id: c.id, tipo: 'conductor' })}
               disabled={!!procesando}
               activeOpacity={0.85}
             >
@@ -241,6 +280,67 @@ function ConductoresSection({ navigate }) {
           </View>
         </View>
       ))}
+
+      {vehiculosPend.length > 0 && (
+        <>
+          <Text style={s.alertaSectionLbl}>VEHÍCULOS ADICIONALES POR APROBAR</Text>
+          <Text style={s.vehAdmNota}>
+            Conductores ya aprobados que registraron otro vehículo. Revisa que
+            su SOAT y tarjeta de propiedad estén al día antes de habilitarlo.
+          </Text>
+          {vehiculosPend.map((v) => (
+            <View key={v.id} style={s.conductorCard}>
+              <View style={s.conductorHeader}>
+                <View style={s.conductorAvatar}>
+                  <Text style={s.conductorAvatarTxt}>
+                    {(v.conductor?.nombre || 'C')[0].toUpperCase()}
+                  </Text>
+                </View>
+                <View style={s.conductorInfo}>
+                  <Text style={s.conductorNombre}>{v.conductor?.nombre || '—'}</Text>
+                  <Text style={s.conductorTel}>{v.conductor?.telefono || '—'}</Text>
+                </View>
+                <View style={s.pendienteBadge}>
+                  <Text style={s.pendienteBadgeTxt}>NUEVO</Text>
+                </View>
+              </View>
+
+              <View style={s.vehAdmDatos}>
+                <Text style={s.vehAdmTitulo}>
+                  {iconoServicio((v.servicios || [])[0])} {v.marca} {v.modelo} · {v.año}
+                </Text>
+                <Text style={s.vehAdmLinea}>Placa {v.placa} · {v.color}</Text>
+                <Text style={s.vehAdmServicios}>
+                  Prestaría: {(v.servicios || [v.tipo_servicio])
+                    .map((x) => labelServicio(x)).join(' · ')}
+                  {v.subtipo ? `  (${v.subtipo})` : ''}
+                </Text>
+              </View>
+
+              <View style={s.accionesRow}>
+                <TouchableOpacity
+                  style={s.btnRechazar}
+                  onPress={() => setMotivoModal({ id: v.id, tipo: 'vehiculo' })}
+                  disabled={!!procesando}
+                  activeOpacity={0.8}
+                >
+                  <Text style={s.btnRechazarTxt}>Rechazar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={s.btnAprobar}
+                  onPress={() => aprobarVeh(v)}
+                  disabled={!!procesando}
+                  activeOpacity={0.8}
+                >
+                  {procesando === v.id + '_aprobar'
+                    ? <ActivityIndicator color={C.black} size="small" />
+                    : <Text style={s.btnAprobarTxt}>Aprobar</Text>}
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+        </>
+      )}
 
       {documentosPend.length > 0 && (
         <Text style={s.alertaSectionLbl}>DOCUMENTOS ACTUALIZADOS POR REVISAR</Text>
@@ -1926,6 +2026,16 @@ const s = StyleSheet.create({
   recargaTabTxt:       { fontSize: 13, fontWeight: '600', color: C.gray },
   recargaTabTxtActive: { fontSize: 13, fontWeight: '700', color: C.yellow },
 
+
+  /* Vehículos por aprobar */
+  vehAdmNota: { fontSize: 11, color: C.gray, lineHeight: 16, marginBottom: 10 },
+  vehAdmDatos: {
+    backgroundColor: C.bg, borderRadius: 12,
+    padding: 12, marginTop: 10, marginBottom: 4,
+  },
+  vehAdmTitulo:    { fontSize: 14, fontWeight: '700', color: C.black },
+  vehAdmLinea:     { fontSize: 12, color: C.gray, marginTop: 3 },
+  vehAdmServicios: { fontSize: 12, color: C.black, fontWeight: '600', marginTop: 6 },
 
   /* En vivo */
   vivoAviso: {
