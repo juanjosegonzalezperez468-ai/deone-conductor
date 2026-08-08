@@ -13,6 +13,7 @@ import { getUserUuid, clearBackendToken, clearPhone, clearUserUuid } from '../ut
 import { detenerUbicacionSegundoPlano, KEY_TIPO_SERVICIO } from '../utils/backgroundLocation';
 import { marcarDocPendiente, limpiarDocPendiente } from '../utils/docPendiente';
 import { C, SHADOW } from '../constants/theme';
+import { NEQUI_RECARGAS, WHATSAPP_SOPORTE, WHATSAPP_URL as WA_URL, TEL_SOPORTE } from '../constants/config';
 
 /* ─── Constants ─────────────────────────────────────────── */
 
@@ -60,7 +61,7 @@ const FAQ = [
   },
   {
     q: '¿Cómo recargo mi saldo?',
-    a: 'Contáctanos por WhatsApp o llama al 323 942 0671 para coordinar la recarga de tu saldo.',
+    a: `Envía el dinero por Nequi al ${NEQUI_RECARGAS} y el comprobante por WhatsApp al ${WHATSAPP_SOPORTE}. Son números distintos: el dinero va al Nequi, el comprobante al WhatsApp.`,
   },
   {
     q: '¿Qué pasa si rechazo un viaje?',
@@ -68,8 +69,8 @@ const FAQ = [
   },
 ];
 
-const WHATSAPP_URL = 'https://wa.me/573239420671';
-const TEL_URL      = 'tel:3239420671';
+const WHATSAPP_URL = WA_URL;
+const TEL_URL      = TEL_SOPORTE;
 
 /* ─── Sub-screen: Perfil ─────────────────────────────────── */
 
@@ -664,7 +665,7 @@ function AyudaView({ onBack }) {
             <Text style={s.contactIcon}>📞</Text>
             <View>
               <Text style={s.callLabel}>Llamar</Text>
-              <Text style={s.callSub}>323 942 0671</Text>
+              <Text style={s.callSub}>{WHATSAPP_SOPORTE}</Text>
             </View>
           </TouchableOpacity>
         </View>

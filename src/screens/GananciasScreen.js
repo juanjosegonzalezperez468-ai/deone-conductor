@@ -7,6 +7,7 @@ import { conductorApi, billingApi } from '../api/client';
 import { SERVICES } from '../constants/services';
 import { getUserUuid } from '../utils/tokenStorage';
 import { C, SHADOW } from '../constants/theme';
+import { NEQUI_RECARGAS, WHATSAPP_SOPORTE } from '../constants/config';
 
 const PERIODOS = ['Hoy', 'Semana', 'Mes'];
 
@@ -129,12 +130,19 @@ export default function GananciasScreen({ navigate, onMenuPress }) {
             <Text style={s.modalTitle}>Recargar saldo</Text>
 
             <View style={s.nequiCard}>
-              <Text style={s.nequiLabel}>NEQUI</Text>
-              <Text style={s.nequiNum}>323 942 0671</Text>
+              <Text style={s.nequiLabel}>ENVÍA EL DINERO A ESTE NEQUI</Text>
+              <Text style={s.nequiNum}>{NEQUI_RECARGAS}</Text>
             </View>
 
             <Text style={s.modalInstruccion}>
               Concepto: <Text style={{ fontWeight: '700' }}>DEONE + tu número</Text>
+            </Text>
+
+            {/* Son dos números distintos y confundirlos retrasa la recarga:
+                el dinero va al Nequi, el comprobante al WhatsApp de soporte. */}
+            <Text style={s.modalInstruccion}>
+              Después envía el comprobante por WhatsApp al{' '}
+              <Text style={{ fontWeight: '700' }}>{WHATSAPP_SOPORTE}</Text>
             </Text>
 
             <Text style={s.modalStepLbl}>SELECCIONA EL MONTO QUE ENVIASTE</Text>
