@@ -4,7 +4,7 @@ import {
   StyleSheet, StatusBar, ActivityIndicator, Alert, Modal, RefreshControl, Linking,
 } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
-import { adminApi } from '../api/client';
+import { adminApi, soporteApi } from '../api/client';
 import { C, SHADOW } from '../constants/theme';
 import { SERVICES } from '../constants/services';
 
@@ -16,6 +16,7 @@ const SECCIONES = [
   { key: 'conductores', label: 'Conductores', icon: '👤' },
   { key: 'directorio',  label: 'Directorio',  icon: '👥' },
   { key: 'recargas',    label: 'Recargas',    icon: '💳' },
+  { key: 'soporte',     label: 'Soporte',     icon: '💬' },
   { key: 'alertas',     label: 'Alertas',     icon: '🚨' },
   { key: 'stats',       label: 'Estadísticas',icon: '📊' },
 ];
@@ -575,6 +576,221 @@ function AlertasSection() {
         </>
       )}
     </ScrollView>
+  );
+}
+
+/* ─── Sección: Soporte ───────────────────────────── */
+
+const haceCuanto = (iso) => {
+  if (!iso) return '';
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (min < 1)    return 'ahora';
+  if (min < 60)   return `hace ${min} min`;
+  const h = Math.round(min / 60);
+  if (h < 24)     return `hace ${h} h`;
+  return `hace ${Math.round(h / 24)} d`;
+};
+
+function SoporteSection() {
+  const [grupo,   setGrupo]   = useState('conductores'); // conductores | clientes
+  const [datos,   setDatos]   = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [caso,    setCaso]    = useState(null);   // { conversacion, mensajes }
+  const [respuesta, setRespuesta] = useState('');
+  const [enviando,  setEnviando]  = useState(false);
+
+  const cargar = useCallback(async (silencioso) => {
+    if (!silencioso) setLoading(true);
+    try {
+      const { data } = await soporteApi.bandeja(null, 'abierta');
+      setDatos(data);
+    } catch {
+      if (!silencioso) setDatos(null);
+    } finally {
+      if (!silencioso) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    cargar(false);
+    const iv = setInterval(() => cargar(true), 20000);
+    return () => clearInterval(iv);
+  }, [cargar]);
+
+  const abrirCaso = async (id) => {
+    try {
+      const { data } = await soporteApi.caso(id);
+      setCaso(data);
+      setRespuesta('');
+      cargar(true);   // refresca los badges tras marcar leído
+    } catch {
+      Alert.alert('Error', 'No se pudo abrir la conversación.');
+    }
+  };
+
+  const responder = async () => {
+    const msg = respuesta.trim();
+    if (!msg || enviando || !caso) return;
+    setEnviando(true);
+    try {
+      await soporteApi.responder(caso.conversacion.id, msg);
+      const { data } = await soporteApi.caso(caso.conversacion.id);
+      setCaso(data);
+      setRespuesta('');
+      cargar(true);
+    } catch (e) {
+      Alert.alert('No se pudo enviar', e?.response?.data?.detail || 'Intenta de nuevo.');
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const cerrarCaso = () => {
+    if (!caso) return;
+    Alert.alert(
+      'Cerrar caso',
+      'El usuario podrá reabrirlo escribiendo de nuevo. ¿Cerrar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cerrar', style: 'destructive',
+          onPress: async () => {
+            try {
+              await soporteApi.cerrar(caso.conversacion.id);
+              setCaso(null);
+              cargar(false);
+            } catch {
+              Alert.alert('Error', 'No se pudo cerrar el caso.');
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  if (loading) {
+    return <View style={s.centerWrap}><ActivityIndicator color={C.yellow} size="large" /></View>;
+  }
+  if (!datos) {
+    return <View style={s.emptyWrap}><Text style={s.emptyTxt}>No se pudo cargar el soporte</Text></View>;
+  }
+
+  // ── Vista de conversación ──
+  if (caso) {
+    const u = caso.conversacion.usuario || {};
+    return (
+      <View style={{ flex: 1 }}>
+        <View style={s.casoHeader}>
+          <TouchableOpacity onPress={() => setCaso(null)} activeOpacity={0.7}>
+            <Text style={s.casoVolver}>‹ Bandeja</Text>
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={s.casoNombre} numberOfLines={1}>{u.nombre || 'Usuario'}</Text>
+            <Text style={s.casoTel}>{u.telefono || ''} · {caso.conversacion.usuario_tipo}</Text>
+          </View>
+          <TouchableOpacity onPress={cerrarCaso} activeOpacity={0.7}>
+            <Text style={s.casoCerrar}>Cerrar</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}>
+          {caso.mensajes.map((m) => {
+            const esAdmin = m.autor === 'admin';
+            return (
+              <View key={m.id} style={[s.msgFila, esAdmin ? s.msgDer : s.msgIzq]}>
+                <View style={esAdmin ? s.msgBurbujaAdmin : s.msgBurbujaUser}>
+                  <Text style={s.msgTxt}>{m.mensaje}</Text>
+                  <Text style={s.msgHora}>{haceCuanto(m.created_at)}</Text>
+                </View>
+              </View>
+            );
+          })}
+        </ScrollView>
+
+        <View style={s.respBarra}>
+          <TextInput
+            style={s.respInput}
+            placeholder="Responder…"
+            placeholderTextColor={C.gray}
+            value={respuesta}
+            onChangeText={setRespuesta}
+            multiline
+          />
+          <TouchableOpacity
+            style={respuesta.trim() && !enviando ? s.respBtn : s.respBtnOff}
+            onPress={responder}
+            disabled={!respuesta.trim() || enviando}
+            activeOpacity={0.8}
+          >
+            {enviando
+              ? <ActivityIndicator color={C.black} size="small" />
+              : <Text style={s.respBtnTxt}>➤</Text>}
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Bandeja ──
+  const esConductores = grupo === 'conductores';
+  const lista = (datos.conversaciones || []).filter((c) =>
+    esConductores ? c.usuario_tipo === 'conductor' : c.usuario_tipo !== 'conductor');
+
+  // Mismas pestañas que la sección Recargas, para que el panel se sienta igual.
+  const Pestana = ({ id, label, badge }) => (
+    <TouchableOpacity
+      style={grupo === id ? s.recargaTabActive : s.recargaTab}
+      onPress={() => setGrupo(id)}
+      activeOpacity={0.8}
+    >
+      <Text style={grupo === id ? s.recargaTabTxtActive : s.recargaTabTxt}>{label}</Text>
+      {badge > 0 && <View style={s.badgeSop}><Text style={s.badgeSopTxt}>{badge}</Text></View>}
+    </TouchableOpacity>
+  );
+
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={s.recargaTabs}>
+        <Pestana id="conductores" label="Conductores" badge={datos.no_leidos_conductores} />
+        <Pestana id="clientes"    label="Clientes"    badge={datos.no_leidos_clientes} />
+      </View>
+
+      <ScrollView contentContainerStyle={s.listContent} showsVerticalScrollIndicator={false}>
+        {!lista.length && (
+          <View style={s.emptyWrap}>
+            <Text style={s.emptyTxt}>
+              Sin casos abiertos de {esConductores ? 'conductores' : 'clientes'}
+            </Text>
+          </View>
+        )}
+        {lista.map((c) => (
+          <TouchableOpacity
+            key={c.id}
+            style={s.casoCard}
+            onPress={() => abrirCaso(c.id)}
+            activeOpacity={0.8}
+          >
+            <View style={{ flex: 1 }}>
+              <View style={s.casoTop}>
+                <Text style={s.casoCardNombre} numberOfLines={1}>
+                  {c.usuario?.nombre || 'Usuario'}
+                </Text>
+                {c.no_leidos_admin > 0 && (
+                  <View style={s.badgeSop}>
+                    <Text style={s.badgeSopTxt}>{c.no_leidos_admin}</Text>
+                  </View>
+                )}
+              </View>
+              <Text style={s.casoPreview} numberOfLines={1}>
+                {c.ultimo_mensaje || c.asunto || '—'}
+              </Text>
+              <Text style={s.casoMeta}>{haceCuanto(c.ultimo_mensaje_at)}</Text>
+            </View>
+            <Text style={s.casoFlecha}>›</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -1303,6 +1519,7 @@ export default function AdminScreen({ navigate, onMenuPress }) {
       {seccion === 'conductores' && <ConductoresSection navigate={navigate} />}
       {seccion === 'directorio'  && <DirectorioSection navigate={navigate} />}
       {seccion === 'recargas'    && <RecargasSection />}
+      {seccion === 'soporte'     && <SoporteSection />}
       {seccion === 'alertas'     && <AlertasSection />}
       {seccion === 'stats'       && <EstadisticasSection />}
     </View>
@@ -1580,6 +1797,68 @@ const s = StyleSheet.create({
   },
   recargaTabTxt:       { fontSize: 13, fontWeight: '600', color: C.gray },
   recargaTabTxtActive: { fontSize: 13, fontWeight: '700', color: C.yellow },
+
+  /* Soporte */
+  badgeSop: {
+    position: 'absolute', top: 4, right: 8,
+    minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5,
+    backgroundColor: C.red, alignItems: 'center', justifyContent: 'center',
+  },
+  badgeSopTxt: { color: C.white, fontSize: 10, fontWeight: '800' },
+
+  casoCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: C.white, borderRadius: 16,
+    padding: 14, marginBottom: 8, ...SHADOW,
+  },
+  casoTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  casoCardNombre: { fontSize: 15, fontWeight: '700', color: C.black, flexShrink: 1 },
+  casoPreview: { fontSize: 13, color: C.gray, marginTop: 3 },
+  casoMeta:    { fontSize: 11, color: C.gray, marginTop: 4 },
+  casoFlecha:  { fontSize: 26, color: C.gray, marginLeft: 8 },
+
+  casoHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    backgroundColor: C.white, borderRadius: 16,
+    padding: 14, marginBottom: 12, ...SHADOW,
+  },
+  casoVolver: { fontSize: 14, fontWeight: '700', color: C.yellow },
+  casoNombre: { fontSize: 15, fontWeight: '700', color: C.black },
+  casoTel:    { fontSize: 12, color: C.gray, marginTop: 2 },
+  casoCerrar: { fontSize: 13, fontWeight: '700', color: C.red },
+
+  msgFila: { flexDirection: 'row', marginBottom: 8 },
+  msgIzq:  { justifyContent: 'flex-start' },
+  msgDer:  { justifyContent: 'flex-end' },
+  msgBurbujaUser: {
+    maxWidth: '84%', backgroundColor: C.white, borderRadius: 14,
+    borderBottomLeftRadius: 4, paddingHorizontal: 13, paddingVertical: 9, ...SHADOW,
+  },
+  msgBurbujaAdmin: {
+    maxWidth: '84%', backgroundColor: C.yellow, borderRadius: 14,
+    borderBottomRightRadius: 4, paddingHorizontal: 13, paddingVertical: 9,
+  },
+  msgTxt:  { fontSize: 14, color: C.black, lineHeight: 20 },
+  msgHora: { fontSize: 10, color: C.gray, marginTop: 4, alignSelf: 'flex-end' },
+
+  respBarra: {
+    flexDirection: 'row', alignItems: 'flex-end', gap: 8,
+    paddingHorizontal: 14, paddingVertical: 10,
+    backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.border,
+  },
+  respInput: {
+    flex: 1, maxHeight: 100, backgroundColor: C.bg, borderRadius: 18,
+    paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: C.black,
+  },
+  respBtn: {
+    width: 42, height: 42, borderRadius: 21, backgroundColor: C.yellow,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  respBtnOff: {
+    width: 42, height: 42, borderRadius: 21, backgroundColor: C.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  respBtnTxt: { fontSize: 16, color: C.black, fontWeight: '700' },
 
   tipoBadgeConductor: {
     alignSelf:         'flex-start',

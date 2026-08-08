@@ -157,6 +157,17 @@ export const rutasApi = {
     api.post('/ratings', { ruta_id: rutaId, calificacion, comentario }),
 };
 
+export const soporteApi = {
+  miConversacion: ()      => api.get('/soporte/mi-conversacion'),
+  enviar:         (msg)   => api.post('/soporte/mensaje', { mensaje: msg }),
+  // Bandeja del administrador
+  bandeja:   (tipo, estado) =>
+    api.get('/admin/soporte', { params: { tipo, estado: estado || 'abierta' } }),
+  caso:      (id)         => api.get(`/admin/soporte/${id}`),
+  responder: (id, msg)    => api.post(`/admin/soporte/${id}/responder`, { mensaje: msg }),
+  cerrar:    (id)         => api.post(`/admin/soporte/${id}/cerrar`),
+};
+
 export const adminApi = {
   conductoresPendientes: ()        => api.get('/admin/conductores/pendientes'),
   conductoresActivos:    ()        => api.get('/admin/conductores/activos'),

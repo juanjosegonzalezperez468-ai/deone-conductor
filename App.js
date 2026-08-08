@@ -22,6 +22,7 @@ import OTPScreen                   from './src/screens/OTPScreen';
 import RegistroConductorScreen     from './src/screens/RegistroConductorScreen';
 import PantallaPendienteScreen     from './src/screens/PantallaPendienteScreen';
 import SolicitudesScreen           from './src/screens/SolicitudesScreen';
+import SoporteScreen               from './src/screens/SoporteScreen';
 import GananciasScreen             from './src/screens/GananciasScreen';
 import ActividadScreen             from './src/screens/ActividadScreen';
 import CuentaScreen                from './src/screens/CuentaScreen';
@@ -259,6 +260,7 @@ export default function App() {
   if (screen === 'OTP')               return <OTPScreen navigate={navigate} params={screenParams} />;
   if (screen === 'Terminos')          return <TerminosScreen navigate={navigate} />;
   if (screen === 'RegistroConductor') return <RegistroConductorScreen navigate={navigate} params={screenParams} />;
+  if (screen === 'Soporte')           return <SoporteScreen onBack={() => navigate('App')} />;
   if (screen === 'PantallaPendiente') return <PantallaPendienteScreen navigate={navigate} />;
 
   if (screen === 'EnServicio') {
@@ -343,6 +345,7 @@ export default function App() {
             <DrawerItem icon="📦" label="Rutas"     onPress={() => irA('Rutas')} />
             <DrawerItem icon="💰" label="Ganancias" onPress={() => irA('Ganancias')} />
             <DrawerItem icon="📋" label="Actividad"  onPress={() => irA('Actividad')} />
+            <DrawerItem icon="💬" label="Soporte"    onPress={() => irA('Soporte')} />
             <DrawerItem icon="👤" label="Cuenta"     onPress={() => irA('Cuenta')} />
             {isAdmin && (
               <DrawerItem icon="🛡️" label="Admin" onPress={() => irA('Admin')} />
