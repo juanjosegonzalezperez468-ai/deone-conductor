@@ -117,7 +117,11 @@ export const documentosApi = {
 
 export const vehiculoApi = {
   registrar: (data)        => api.post('/conductores/vehiculo/registrar', data),
+  // Devuelve el vehículo que el conductor está usando ahora.
   obtener:   (conductorId) => api.get(`/conductores/vehiculo/${conductorId}`),
+  listar:    (conductorId) => api.get(`/conductores/vehiculos/${conductorId}`),
+  activar:   (vehiculoId)  => api.post(`/conductores/vehiculo/${vehiculoId}/activar`),
+  eliminar:  (vehiculoId)  => api.delete(`/conductores/vehiculo/${vehiculoId}`),
 };
 
 export const chatApi = {

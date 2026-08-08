@@ -393,30 +393,48 @@ function DocumentosView({ documentos, conductorId, onBack, onRefresh }) {
 
 /* ─── Sub-screen: Vehículo ───────────────────────────────── */
 
-function VehiculoView({ vehiculo, conductorId, onBack, onSave }) {
+function VehiculoView({ vehiculo, conductorId, onBack, onSave, esNuevo = false }) {
   const [marca,        setMarca]        = useState(vehiculo?.marca         || '');
   const [modelo,       setModelo]       = useState(vehiculo?.modelo        || '');
   const [placa,        setPlaca]        = useState(vehiculo?.placa         || '');
   const [color,        setColor]        = useState(vehiculo?.color         || '');
   const [anio,         setAnio]         = useState(vehiculo?.año ? String(vehiculo.año) : '');
-  const [tipoServicio, setTipoServicio] = useState(vehiculo?.tipo_servicio || null);
   const [subtipo,      setSubtipo]      = useState(vehiculo?.subtipo || null);
   const [capacidad,    setCapacidad]    = useState(vehiculo?.capacidad_kg ? String(vehiculo.capacidad_kg) : '');
   const [saving,       setSaving]       = useState(false);
 
-  const subtiposDisponibles = SUBTIPOS[tipoServicio] || null;   // solo grúa/acarreo
-  const requiereSubtipo = !!subtiposDisponibles;
+  // Servicios que presta este vehículo. El primero es el principal, que es el
+  // que el backend guarda como tipo_servicio.
+  const [servicios, setServicios] = useState(
+    vehiculo?.servicios?.length ? vehiculo.servicios
+      : vehiculo?.tipo_servicio ? [vehiculo.tipo_servicio] : []
+  );
 
-  // Al cambiar el tipo de servicio, limpiar el sub-tipo si ya no aplica
-  const cambiarTipo = (id) => {
-    setTipoServicio(id);
-    if (!SUBTIPOS[id]) { setSubtipo(null); setCapacidad(''); }
-    else if (!SUBTIPOS[id].some((x) => x.id === subtipo)) setSubtipo(null);
+  const alternarServicio = (id) => {
+    setServicios((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   };
+
+  // Sub-tipos que sirven para TODOS los servicios pesados marcados: una
+  // camioneta hace grúa y acarreo, una camabaja solo grúa. Si no hay ninguno
+  // en común, la combinación es imposible y se avisa antes de guardar.
+  const pesados = servicios.filter((sv) => SUBTIPOS[sv]);
+  const subtiposDisponibles = pesados.length
+    ? SUBTIPOS[pesados[0]].filter((st) => pesados.every((sv) => SUBTIPOS[sv].some((x) => x.id === st.id)))
+    : null;
+  const requiereSubtipo = pesados.length > 0;
+  const combinacionImposible = requiereSubtipo && subtiposDisponibles.length === 0;
+
+  // Si al marcar otro servicio el sub-tipo elegido deja de valer, se limpia.
+  useEffect(() => {
+    if (!requiereSubtipo) { setSubtipo(null); setCapacidad(''); }
+    else if (subtipo && !subtiposDisponibles.some((x) => x.id === subtipo)) setSubtipo(null);
+  }, [servicios.join(',')]);
+
+  const tipoServicio = servicios[0] || null;
 
   const valid =
     marca.trim() && modelo.trim() && placa.trim() && color.trim() && anio.trim() &&
-    tipoServicio && (!requiereSubtipo || !!subtipo);
+    servicios.length > 0 && !combinacionImposible && (!requiereSubtipo || !!subtipo);
 
   const save = async () => {
     if (!valid || saving) return;
@@ -441,8 +459,13 @@ function VehiculoView({ vehiculo, conductorId, onBack, onSave }) {
         color:         color.trim(),
         año:           anioNum,
         tipo_servicio: tipoServicio,
+        servicios,
         subtipo:       requiereSubtipo ? subtipo : null,
-        capacidad_kg:  tipoServicio === 'acarreo' && capacidad ? parseInt(capacidad, 10) : null,
+        capacidad_kg:  servicios.includes('acarreo') && capacidad ? parseInt(capacidad, 10) : null,
+        // Sin vehiculo_id el backend edita el único existente; con `nuevo`
+        // crea otro. Es lo que distingue "editar" de "agregar".
+        ...(vehiculo?.id ? { vehiculo_id: vehiculo.id } : {}),
+        ...(esNuevo ? { nuevo: true } : {}),
       });
       // El heartbeat de segundo plano lee el tipo de servicio de AsyncStorage
       AsyncStorage.setItem(KEY_TIPO_SERVICIO, tipoServicio).catch(() => {});
@@ -464,7 +487,7 @@ function VehiculoView({ vehiculo, conductorId, onBack, onSave }) {
         <TouchableOpacity onPress={onBack} style={s.backBtn} activeOpacity={0.7}>
           <Text style={s.backArrow}>‹</Text>
         </TouchableOpacity>
-        <Text style={s.subTitle}>Mi Vehículo</Text>
+        <Text style={s.subTitle}>{esNuevo ? 'Nuevo vehículo' : 'Editar vehículo'}</Text>
         <View style={s.backBtn} />
       </View>
 
@@ -520,22 +543,32 @@ function VehiculoView({ vehiculo, conductorId, onBack, onSave }) {
           maxLength={4}
         />
 
-        <Text style={s.fieldLabel}>Tipo de servicio</Text>
+        <Text style={s.fieldLabel}>¿Qué servicios puede prestar?</Text>
+        <Text style={s.fieldHint}>
+          Puedes marcar varios: una camioneta sirve igual para grúa de motos que
+          para acarreo.
+        </Text>
         <View style={s.tipoGrid}>
-          {TIPOS_SERVICIO.map((t) => (
-            <TouchableOpacity
-              key={t.id}
-              style={tipoServicio === t.id ? s.tipoCardSelected : s.tipoCard}
-              onPress={() => cambiarTipo(t.id)}
-              activeOpacity={0.8}
-            >
-              <Text style={s.tipoIcon}>{t.icon}</Text>
-              <Text style={tipoServicio === t.id ? s.tipoLabelSelected : s.tipoLabel}>
-                {t.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+          {TIPOS_SERVICIO.map((t) => {
+            const sel = servicios.includes(t.id);
+            return (
+              <TouchableOpacity
+                key={t.id}
+                style={sel ? s.tipoCardSelected : s.tipoCard}
+                onPress={() => alternarServicio(t.id)}
+                activeOpacity={0.8}
+              >
+                <Text style={s.tipoIcon}>{t.icon}</Text>
+                <Text style={sel ? s.tipoLabelSelected : s.tipoLabel}>{t.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
         </View>
+        {servicios.length > 1 && (
+          <Text style={s.fieldHint}>
+            Al usar este vehículo recibirás carreras de {servicios.length} servicios.
+          </Text>
+        )}
 
         {/* Sub-tipo del vehículo (solo grúa/acarreo) */}
         {requiereSubtipo && (
@@ -657,12 +690,163 @@ function AyudaView({ onBack }) {
   );
 }
 
+/* ─── Sub-screen: Mis vehículos ──────────────────────────── */
+
+const LABEL_SERVICIO = Object.fromEntries(TIPOS_SERVICIO.map((t) => [t.id, t.label]));
+
+function VehiculosView({ conductorId, onBack, onSave }) {
+  const [vehiculos, setVehiculos] = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [editando,  setEditando]  = useState(null);   // vehículo | 'nuevo' | null
+  const [cambiando, setCambiando] = useState(null);
+
+  const cargar = async () => {
+    try {
+      const { data } = await vehiculoApi.listar(conductorId);
+      setVehiculos(data.vehiculos || []);
+    } catch {
+      setVehiculos([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { cargar(); }, []);
+
+  const activar = async (v) => {
+    if (v.activo || cambiando) return;
+    if (!v.verificado) {
+      Alert.alert(
+        'Vehículo en revisión',
+        'El equipo Deone está revisando los documentos de este vehículo. Te avisamos cuando quede habilitado.',
+      );
+      return;
+    }
+    setCambiando(v.id);
+    try {
+      const { data } = await vehiculoApi.activar(v.id);
+      // El servicio de segundo plano lee de aquí qué carreras pedir.
+      AsyncStorage.setItem(KEY_TIPO_SERVICIO, (data.servicios || [])[0] || '').catch(() => {});
+      await cargar();
+      await onSave();
+      Alert.alert(
+        'Vehículo cambiado',
+        `Ahora recibirás carreras de: ${(data.servicios || []).map((x) => LABEL_SERVICIO[x] || x).join(', ')}.`,
+      );
+    } catch (err) {
+      Alert.alert('No se pudo cambiar', err?.response?.data?.detail || 'Intenta de nuevo.');
+    } finally {
+      setCambiando(null);
+    }
+  };
+
+  const eliminar = (v) => {
+    Alert.alert('Eliminar vehículo', `¿Eliminar ${v.marca} ${v.modelo} (${v.placa})?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Eliminar', style: 'destructive',
+        onPress: async () => {
+          try {
+            await vehiculoApi.eliminar(v.id);
+            await cargar();
+            await onSave();
+          } catch (err) {
+            Alert.alert('No se pudo eliminar', err?.response?.data?.detail || 'Intenta de nuevo.');
+          }
+        },
+      },
+    ]);
+  };
+
+  if (editando) {
+    return (
+      <VehiculoView
+        vehiculo={editando === 'nuevo' ? null : editando}
+        conductorId={conductorId}
+        esNuevo={editando === 'nuevo'}
+        onBack={() => setEditando(null)}
+        onSave={async () => { await cargar(); await onSave(); setEditando(null); }}
+      />
+    );
+  }
+
+  return (
+    <View style={s.root}>
+      <StatusBar backgroundColor={C.bg} barStyle="dark-content" />
+      <View style={s.subHeader}>
+        <TouchableOpacity onPress={onBack} style={s.backBtn} activeOpacity={0.7}>
+          <Text style={s.backArrow}>‹</Text>
+        </TouchableOpacity>
+        <Text style={s.subTitle}>Mis vehículos</Text>
+        <View style={s.backBtn} />
+      </View>
+
+      {loading ? (
+        <View style={s.centerWrap}><ActivityIndicator color={C.yellow} size="large" /></View>
+      ) : (
+        <ScrollView contentContainerStyle={s.subContent}>
+          <Text style={s.vehIntro}>
+            Toca un vehículo para usarlo. Solo recibirás carreras de los servicios
+            del vehículo que tengas en uso.
+          </Text>
+
+          {vehiculos.map((v) => (
+            <TouchableOpacity
+              key={v.id}
+              style={v.activo ? s.vehCardActivo : s.vehCard}
+              onPress={() => activar(v)}
+              activeOpacity={0.8}
+            >
+              <View style={{ flex: 1 }}>
+                <View style={s.vehTop}>
+                  <Text style={s.vehNombre} numberOfLines={1}>
+                    {v.marca} {v.modelo}
+                  </Text>
+                  {v.activo && <View style={s.vehBadgeUso}><Text style={s.vehBadgeUsoTxt}>EN USO</Text></View>}
+                  {!v.verificado && <View style={s.vehBadgeRev}><Text style={s.vehBadgeRevTxt}>EN REVISIÓN</Text></View>}
+                </View>
+                <Text style={s.vehPlaca}>{v.placa} · {v.color}</Text>
+                <Text style={s.vehServicios}>
+                  {(v.servicios || [v.tipo_servicio]).map((x) => LABEL_SERVICIO[x] || x).join(' · ')}
+                </Text>
+              </View>
+              {cambiando === v.id
+                ? <ActivityIndicator color={C.yellow} />
+                : (
+                  <View style={s.vehAcciones}>
+                    <TouchableOpacity onPress={() => setEditando(v)} activeOpacity={0.7}>
+                      <Text style={s.vehEditar}>Editar</Text>
+                    </TouchableOpacity>
+                    {vehiculos.length > 1 && (
+                      <TouchableOpacity onPress={() => eliminar(v)} activeOpacity={0.7}>
+                        <Text style={s.vehEliminar}>Eliminar</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                )}
+            </TouchableOpacity>
+          ))}
+
+          <TouchableOpacity style={s.vehAgregar} onPress={() => setEditando('nuevo')} activeOpacity={0.8}>
+            <Text style={s.vehAgregarTxt}>+ Agregar otro vehículo</Text>
+          </TouchableOpacity>
+
+          <Text style={s.vehNota}>
+            Un vehículo nuevo pasa por revisión antes de poder usarse. Sube sus
+            documentos desde "Mis documentos".
+          </Text>
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
 /* ─── Main Screen ─────────────────────────────────────────── */
 
 const MENU_ITEMS = [
   { icon: '👤', label: 'Mi perfil',      key: 'perfil' },
   { icon: '📄', label: 'Mis documentos', key: 'documentos' },
-  { icon: '🏍️', label: 'Mi vehículo',   key: 'vehiculo' },
+  { icon: '🏍️', label: 'Mis vehículos', key: 'vehiculo' },
   { icon: '❓', label: 'Ayuda',         key: 'ayuda' },
   { icon: '💬', label: 'Soporte',       key: 'ayuda' },
   { icon: '📋', label: 'Comisiones',    key: null },
@@ -810,7 +994,7 @@ export default function CuentaScreen({ navigate, onMenuPress }) {
     return <DocumentosView documentos={documentos} conductorId={uuidRef.current} onBack={back} onRefresh={fetchDocumentos} />;
   }
   if (subScreen === 'vehiculo') {
-    return <VehiculoView vehiculo={vehiculo} conductorId={uuidRef.current} onBack={back} onSave={fetchVehiculo} />;
+    return <VehiculosView conductorId={uuidRef.current} onBack={back} onSave={fetchVehiculo} />;
   }
   if (subScreen === 'ayuda') {
     return <AyudaView onBack={back} />;
@@ -823,7 +1007,7 @@ export default function CuentaScreen({ navigate, onMenuPress }) {
   const menuSubs = {
     'Mi perfil':      perfil.nombre || 'Editar información',
     'Mis documentos': `${docsAprobados}/${DOCUMENTOS_DEF.length} aprobados`,
-    'Mi vehículo':    vehiculoSub,
+    'Mis vehículos':  vehiculoSub,
     'Ayuda':          'Preguntas frecuentes',
     'Soporte':        'WhatsApp y llamadas',
     'Comisiones':     '8.5% por viaje',
@@ -1213,6 +1397,45 @@ const s = StyleSheet.create({
   },
 
   fieldLabel: { fontSize: 13, fontWeight: '600', color: C.black, marginBottom: 8, marginTop: 4 },
+  fieldHint:  { fontSize: 11, color: C.gray, marginBottom: 10, lineHeight: 16, marginTop: -4 },
+
+  /* Mis vehículos */
+  centerWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  vehIntro:   { fontSize: 12, color: C.gray, lineHeight: 18, marginBottom: 16 },
+  vehCard: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: C.white, borderRadius: 16, padding: 14,
+    marginBottom: 10, borderWidth: 1.5, borderColor: C.border, ...SHADOW,
+  },
+  vehCardActivo: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: C.white, borderRadius: 16, padding: 14,
+    marginBottom: 10, borderWidth: 2, borderColor: C.yellow, ...SHADOW,
+  },
+  vehTop:    { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  vehNombre: { fontSize: 15, fontWeight: '700', color: C.black, flexShrink: 1 },
+  vehBadgeUso: {
+    backgroundColor: C.yellow, borderRadius: 8,
+    paddingHorizontal: 7, paddingVertical: 2,
+  },
+  vehBadgeUsoTxt: { fontSize: 9, fontWeight: '800', color: C.black },
+  vehBadgeRev: {
+    backgroundColor: '#FFF9E6', borderColor: '#FFD700', borderWidth: 1,
+    borderRadius: 8, paddingHorizontal: 7, paddingVertical: 2,
+  },
+  vehBadgeRevTxt: { fontSize: 9, fontWeight: '800', color: '#7A5C00' },
+  vehPlaca:     { fontSize: 12, color: C.gray, marginTop: 4 },
+  vehServicios: { fontSize: 12, color: C.black, fontWeight: '600', marginTop: 4 },
+  vehAcciones:  { alignItems: 'flex-end', gap: 8, marginLeft: 10 },
+  vehEditar:    { fontSize: 12, fontWeight: '700', color: C.yellow },
+  vehEliminar:  { fontSize: 12, fontWeight: '700', color: C.red },
+  vehAgregar: {
+    backgroundColor: C.white, borderRadius: 16, paddingVertical: 15,
+    alignItems: 'center', borderWidth: 1.5, borderColor: C.yellow,
+    borderStyle: 'dashed', marginTop: 4,
+  },
+  vehAgregarTxt: { fontSize: 14, fontWeight: '700', color: C.black },
+  vehNota: { fontSize: 11, color: C.gray, lineHeight: 16, marginTop: 14 },
   fieldInput: {
     borderWidth:      1.5,
     borderColor:      C.border,
