@@ -800,6 +800,22 @@ function RideCard({ solicitud, location, onPress }) {
         <Text style={rc.precio}>
           ${Number(solicitud.precio_propuesto || 0).toLocaleString('es-CO')}
         </Text>
+        {(() => {
+          // Con "ofrece tu precio" el cliente puede pedir por debajo o por
+          // encima de la tarifa. Sin una referencia, el conductor ve un número
+          // suelto y no sabe si le conviene. `tarifa_base` la calcula el
+          // servidor al crear la solicitud.
+          const ref = Number(solicitud.tarifa_base || 0);
+          const ofrecido = Number(solicitud.precio_propuesto || 0);
+          if (!ref || !ofrecido) return null;
+          const pct = Math.round(((ofrecido - ref) / ref) * 100);
+          if (pct === 0) return <Text style={rc.tarifaIgual}>en tarifa</Text>;
+          return (
+            <Text style={pct > 0 ? rc.tarifaSobre : rc.tarifaBajo}>
+              {pct > 0 ? `+${pct}%` : `${pct}%`} vs tarifa
+            </Text>
+          );
+        })()}
         <Text style={rc.verTxt}>Ver →</Text>
       </View>
     </TouchableOpacity>
@@ -1067,4 +1083,8 @@ const rc = StyleSheet.create({
   right:   { alignItems: 'flex-end' },
   precio:  { color: C.black, fontSize: 16, fontWeight: '800' },
   verTxt:  { color: C.yellow, fontSize: 12, fontWeight: '700', marginTop: 4 },
+  // Desviación de la oferta respecto a la tarifa calculada
+  tarifaSobre: { color: C.green, fontSize: 11, fontWeight: '700', marginTop: 2 },
+  tarifaBajo:  { color: C.red,   fontSize: 11, fontWeight: '700', marginTop: 2 },
+  tarifaIgual: { color: C.gray,  fontSize: 11, fontWeight: '600', marginTop: 2 },
 });
