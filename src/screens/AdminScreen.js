@@ -11,6 +11,7 @@ import { SERVICES } from '../constants/services';
 /* ─── Constantes ──────────────────────────────────── */
 
 const SECCIONES = [
+  { key: 'vivo',        label: 'En vivo',     icon: '🔴' },
   { key: 'mapa',        label: 'Mapa',        icon: '🗺️' },
   { key: 'rutas',       label: 'Rutas',       icon: '📦' },
   { key: 'conductores', label: 'Conductores', icon: '👤' },
@@ -575,6 +576,132 @@ function AlertasSection() {
           ))}
         </>
       )}
+    </ScrollView>
+  );
+}
+
+/* ─── Sección: En vivo ───────────────────────────── */
+
+const SERVICIO_CORTO = {
+  moto_pasajero: 'Moto', carro_pasajero: 'Carro', domicilio: 'Domicilio',
+  acarreo: 'Acarreo', grua: 'Grúa',
+};
+
+function EnVivoSection() {
+  const [data,    setData]    = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const cargar = useCallback(async (silencioso) => {
+    if (!silencioso) setLoading(true);
+    try {
+      const { data: d } = await adminApi.solicitudesVivo();
+      setData(d);
+    } catch {
+      if (!silencioso) setData(null);
+    } finally {
+      if (!silencioso) setLoading(false);
+    }
+  }, []);
+
+  // Refresco corto: el valor de esta pantalla es poder intervenir a tiempo.
+  useEffect(() => {
+    cargar(false);
+    const iv = setInterval(() => cargar(true), 10000);
+    return () => clearInterval(iv);
+  }, [cargar]);
+
+  if (loading) {
+    return <View style={s.centerWrap}><ActivityIndicator color={C.yellow} size="large" /></View>;
+  }
+  if (!data) {
+    return <View style={s.emptyWrap}><Text style={s.emptyTxt}>No se pudo cargar</Text></View>;
+  }
+
+  const llamar = (tel) => {
+    if (!tel) return;
+    Linking.openURL(`tel:${tel}`).catch(() => {});
+  };
+
+  const Tarjeta = ({ sol, enCurso }) => {
+    // Una solicitud vieja sin una sola oferta es el caso que exige actuar.
+    const urgente = !enCurso && sol.sin_oferta && (sol.minutos_esperando || 0) >= 5;
+    const persona = enCurso ? sol.conductor : sol.cliente;
+    return (
+      <View style={[s.vivoCard, urgente && s.vivoCardUrgente]}>
+        <View style={s.vivoTop}>
+          <Text style={s.vivoServicio}>
+            {iconoServicio(sol.tipo_servicio)} {SERVICIO_CORTO[sol.tipo_servicio] || sol.tipo_servicio}
+          </Text>
+          <Text style={s.vivoPrecio}>
+            ${Number(sol.precio_final || sol.precio_propuesto || 0).toLocaleString('es-CO')}
+          </Text>
+        </View>
+
+        <Text style={s.vivoRuta} numberOfLines={1}>
+          {sol.origen_direccion || 'Origen'} → {sol.destino_direccion || 'Destino'}
+        </Text>
+
+        <View style={s.vivoMetaRow}>
+          <Text style={urgente ? s.vivoTiempoMal : s.vivoTiempo}>
+            {sol.minutos_esperando == null ? '—' : `${sol.minutos_esperando} min`}
+            {enCurso ? ' en curso' : ' esperando'}
+          </Text>
+          {!enCurso && (
+            <Text style={sol.sin_oferta ? s.vivoSinOferta : s.vivoConOferta}>
+              {sol.sin_oferta ? 'sin ofertas' : `${sol.ofertas} oferta${sol.ofertas > 1 ? 's' : ''}`}
+            </Text>
+          )}
+          {!enCurso && sol.minutos_restantes != null && (
+            <Text style={s.vivoExpira}>expira en {sol.minutos_restantes} min</Text>
+          )}
+        </View>
+
+        <View style={s.vivoPie}>
+          <Text style={s.vivoPersona} numberOfLines={1}>
+            {enCurso ? '🚗 ' : '👤 '}{persona?.nombre || '—'}
+          </Text>
+          {persona?.telefono && (
+            <TouchableOpacity onPress={() => llamar(persona.telefono)} activeOpacity={0.7}>
+              <Text style={s.vivoLlamar}>Llamar</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  return (
+    <ScrollView
+      contentContainerStyle={s.listContent}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={false} onRefresh={() => cargar(false)} tintColor={C.yellow} />}
+    >
+      {data.sin_oferta > 0 && (
+        <View style={s.vivoAviso}>
+          <Text style={s.vivoAvisoTitulo}>
+            {data.sin_oferta} solicitud{data.sin_oferta > 1 ? 'es' : ''} sin una sola oferta
+          </Text>
+          <Text style={s.vivoAvisoTxt}>
+            Aún están vivas. Mira el mapa y llama a un conductor cercano antes de que expiren.
+          </Text>
+        </View>
+      )}
+
+      <Text style={s.statsSectionLbl}>ESPERANDO CONDUCTOR ({data.esperando.length})</Text>
+      {!data.esperando.length && (
+        <Text style={s.vivoVacio}>Ninguna solicitud esperando ahora mismo.</Text>
+      )}
+      {data.esperando.map((sol) => <Tarjeta key={sol.id} sol={sol} />)}
+
+      <Text style={[s.statsSectionLbl, { marginTop: 22 }]}>
+        SERVICIOS EN CURSO ({data.en_curso.length})
+      </Text>
+      {!data.en_curso.length && (
+        <Text style={s.vivoVacio}>Ningún servicio en curso.</Text>
+      )}
+      {data.en_curso.map((sol) => <Tarjeta key={sol.id} sol={sol} enCurso />)}
+
+      <Text style={s.piePanel}>Se actualiza solo cada 10 segundos.</Text>
     </ScrollView>
   );
 }
@@ -1474,7 +1601,7 @@ function RutasAdminSection() {
 /* ─── Pantalla principal Admin ───────────────────── */
 
 export default function AdminScreen({ navigate, onMenuPress }) {
-  const [seccion, setSeccion] = useState('conductores');
+  const [seccion, setSeccion] = useState('vivo');
 
   return (
     <View style={s.root}>
@@ -1514,6 +1641,7 @@ export default function AdminScreen({ navigate, onMenuPress }) {
       </View>
 
       {/* Contenido */}
+      {seccion === 'vivo'        && <EnVivoSection />}
       {seccion === 'mapa'        && <MapaSection />}
       {seccion === 'rutas'       && <RutasAdminSection />}
       {seccion === 'conductores' && <ConductoresSection navigate={navigate} />}
@@ -1797,6 +1925,38 @@ const s = StyleSheet.create({
   },
   recargaTabTxt:       { fontSize: 13, fontWeight: '600', color: C.gray },
   recargaTabTxtActive: { fontSize: 13, fontWeight: '700', color: C.yellow },
+
+
+  /* En vivo */
+  vivoAviso: {
+    backgroundColor: C.redBg, borderLeftWidth: 4, borderLeftColor: C.red,
+    borderRadius: 12, padding: 14, marginBottom: 18,
+  },
+  vivoAvisoTitulo: { fontSize: 14, fontWeight: '800', color: C.black, marginBottom: 4 },
+  vivoAvisoTxt:    { fontSize: 12, color: C.gray, lineHeight: 17 },
+
+  vivoCard: {
+    backgroundColor: C.white, borderRadius: 16, padding: 14,
+    marginBottom: 8, ...SHADOW,
+  },
+  vivoCardUrgente: { borderLeftWidth: 4, borderLeftColor: C.red },
+  vivoTop:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  vivoServicio: { fontSize: 14, fontWeight: '700', color: C.black },
+  vivoPrecio:   { fontSize: 15, fontWeight: '800', color: C.black },
+  vivoRuta:     { fontSize: 12, color: C.gray, marginTop: 5 },
+  vivoMetaRow:  { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' },
+  vivoTiempo:    { fontSize: 11, color: C.gray, fontWeight: '600' },
+  vivoTiempoMal: { fontSize: 11, color: C.red, fontWeight: '800' },
+  vivoSinOferta: { fontSize: 11, color: C.red, fontWeight: '800' },
+  vivoConOferta: { fontSize: 11, color: C.green, fontWeight: '700' },
+  vivoExpira:    { fontSize: 11, color: C.gray },
+  vivoPie: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.border,
+  },
+  vivoPersona: { fontSize: 12, color: C.black, fontWeight: '600', flex: 1 },
+  vivoLlamar:  { fontSize: 12, color: C.yellow, fontWeight: '800' },
+  vivoVacio:   { fontSize: 12, color: C.gray, paddingVertical: 8 },
 
   /* Soporte */
   badgeSop: {

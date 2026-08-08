@@ -189,6 +189,7 @@ export const adminApi = {
   metricas:              (dias)    => api.get('/admin/metricas', { params: { dias: dias || 30 } }),
   eventos:               (limite)  => api.get('/admin/eventos', { params: { limite: limite || 50 } }),
   mapaConductores:       ()        => api.get('/admin/mapa-conductores'),
+  solicitudesVivo:       ()        => api.get('/admin/solicitudes-vivo'),
   rutas:                 (estado)  => api.get('/admin/rutas', { params: estado ? { estado } : {} }),
   rutaDetalle:           (id)      => api.get(`/admin/rutas/${id}`),
 };
